@@ -111,7 +111,7 @@ class LiveStreamingEngine(
             compositor = localCompositor
             val decoderSurface = localCompositor.start()
             val localVideo = VideoSourceController(
-                context.contentResolver,
+                context,
                 settings.videoUri,
                 localCompositor,
                 onReady = { width, height, _ ->
@@ -127,7 +127,7 @@ class LiveStreamingEngine(
             videoSource = localVideo
             localVideo.prepare(decoderSurface)
             // onReady has transitioned to VIDEO_READY; the encoder may have been prepared first.
-            val localAudio = AudioPipeline(context.contentResolver, settings.videoUri, settings.videoAudio, { error ->
+            val localAudio = AudioPipeline(context, settings.videoUri, settings.videoAudio, { error ->
                 if (settings.videoAudio) fail(StreamError.AUDIO_INIT_FAILED, error)
             }, clock)
             audio = localAudio
@@ -157,7 +157,7 @@ class LiveStreamingEngine(
             }
             publishSnapshot()
         } catch (error: Throwable) {
-            if (running.get()) fail(error.toStreamError(), error.message)
+            if (running.get()) fail(error.message?.toStreamError() ?: StreamError.UNKNOWN, error.message)
         }
     }
 
@@ -287,7 +287,7 @@ class LiveStreamingEngine(
 
     fun snapshot(): EngineSnapshot = lastSnapshot
 
-    private fun String.toStreamError(): StreamError = StreamError.entries.firstOrNull { code == this || startsWith(it.code) } ?: StreamError.UNKNOWN
+    private fun String.toStreamError(): StreamError = StreamError.entries.firstOrNull { it.code == this || startsWith(it.code) } ?: StreamError.UNKNOWN
 
     private fun MediaFormat.toAvcDecoderConfiguration(): ByteArray? {
         val sps = getByteBuffer("csd-0")?.let { it.toByteArrayWithoutPadding() } ?: return null

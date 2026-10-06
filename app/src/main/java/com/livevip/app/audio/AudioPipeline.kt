@@ -1,6 +1,6 @@
 package com.livevip.app.audio
 
-import android.content.ContentResolver
+import android.content.Context
 import android.media.MediaExtractor
 import android.media.MediaFormat
 import android.net.Uri
@@ -9,7 +9,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Reads the source AAC track directly, preserving it instead of silently dropping video audio. */
 class AudioPipeline(
-    private val resolver: ContentResolver,
+    private val context: Context,
     private val uri: Uri,
     private val enabled: Boolean,
     private val onError: (String) -> Unit,
@@ -27,7 +27,7 @@ class AudioPipeline(
         if (!enabled) return false
         val extractor = MediaExtractor()
         try {
-            extractor.setDataSource(resolver, uri, null)
+            extractor.setDataSource(context, uri, null)
             for (index in 0 until extractor.trackCount) {
                 val trackFormat = extractor.getTrackFormat(index)
                 if (trackFormat.getString(MediaFormat.KEY_MIME)?.startsWith("audio/") == true) {
@@ -84,7 +84,7 @@ class AudioPipeline(
         while (running.get()) {
             val extractor = MediaExtractor()
             try {
-                extractor.setDataSource(resolver, uri, null)
+                extractor.setDataSource(context, uri, null)
                 extractor.selectTrack(trackIndex)
                 while (running.get()) {
                     val buffer = java.nio.ByteBuffer.allocate(512 * 1024)

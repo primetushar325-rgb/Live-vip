@@ -1,6 +1,6 @@
 package com.livevip.app.video
 
-import android.content.ContentResolver
+import android.content.Context
 import android.media.MediaCodec
 import android.media.MediaExtractor
 import android.media.MediaFormat
@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 
 /** Decoder-only source controller. It owns extractor/decoder and loops only the source. */
 class VideoSourceController(
-    private val resolver: ContentResolver,
+    private val context: Context,
     private val uri: Uri,
     private val compositor: LiveCompositor,
     private val onReady: (width: Int, height: Int, durationUs: Long) -> Unit,
@@ -34,7 +34,7 @@ class VideoSourceController(
     fun prepare(decoderSurface: Surface) {
         val localExtractor = MediaExtractor()
         try {
-            localExtractor.setDataSource(resolver, uri, null)
+            localExtractor.setDataSource(context, uri, null)
         } catch (security: SecurityException) {
             localExtractor.release()
             onError("VIDEO_PERMISSION_DENIED")
