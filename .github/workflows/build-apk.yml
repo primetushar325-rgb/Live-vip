@@ -61,26 +61,26 @@ jobs:
       - name: Rename APKs
         run: |
           mkdir -p out
-          cp app/build/outputs/apk/debug/app-debug.apk out/LiveVIP-v1.0.0-debug.apk
-          cp app/build/outputs/apk/release/app-release.apk out/LiveVIP-v1.0.0-release.apk
+          cp app/build/outputs/apk/debug/app-debug.apk out/LiveVIP-v2.0.0-debug.apk
+          cp app/build/outputs/apk/release/app-release.apk out/LiveVIP-v2.0.0-release.apk
           ls -la out/
 
       - name: Verify release APK signature
         run: |
           BUILD_TOOLS=$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)
-          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs out/LiveVIP-v1.0.0-release.apk
+          "$ANDROID_HOME/build-tools/$BUILD_TOOLS/apksigner" verify --print-certs out/LiveVIP-v2.0.0-release.apk
 
       - name: Upload debug APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: LiveVIP-debug-apk
-          path: out/LiveVIP-v1.0.0-debug.apk
+          path: out/LiveVIP-v2.0.0-debug.apk
 
       - name: Upload release APK artifact
         uses: actions/upload-artifact@v4
         with:
           name: LiveVIP-release-apk
-          path: out/LiveVIP-v1.0.0-release.apk
+          path: out/LiveVIP-v2.0.0-release.apk
 
       - name: Publish APKs to GitHub Release
         if: github.ref_type == 'branch'
@@ -93,4 +93,4 @@ jobs:
             --title "Live VIP APK build ${{ github.run_number }}" \
             --notes "Automated build from ${{ github.sha }} (branch ${{ github.ref_name }}). Contains debug and signed release APKs." \
             --target "${{ github.sha }}" \
-            out/LiveVIP-v1.0.0-debug.apk out/LiveVIP-v1.0.0-release.apk
+            out/LiveVIP-v2.0.0-debug.apk out/LiveVIP-v2.0.0-release.apk
