@@ -8,6 +8,7 @@ import com.livevip.app.data.Destination
 import com.livevip.app.data.PlaylistItem
 import com.livevip.app.data.Project
 import com.livevip.app.data.ProjectBundle
+import com.livevip.app.data.OverlayTemplate
 import com.livevip.app.data.StreamSession
 import com.livevip.app.overlay.OverlayConfig
 import com.livevip.app.overlay.SceneConfig

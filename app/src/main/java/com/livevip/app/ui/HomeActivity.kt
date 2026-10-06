@@ -535,7 +535,6 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
             height = preset.height,
             fps = defaults.fps,
             videoBitrateKbps = defaults.videoBitrateKbps,
-            micEnabledByDefault = defaults.micEnabled,
             canvasJson = com.livevip.app.overlay.CanvasConfig(
                 aspect = if (isShorts) com.livevip.app.overlay.CanvasAspect.PORTRAIT_9_16
                 else com.livevip.app.overlay.CanvasAspect.LANDSCAPE_16_9,

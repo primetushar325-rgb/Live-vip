@@ -39,6 +39,15 @@
         app:tint="@color/success_green" />
 
     <ImageButton
+        android:id="@+id/btnRemoveScene"
+        android:layout_width="32dp"
+        android:layout_height="32dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/delete"
+        android:src="@drawable/ic_close"
+        app:tint="@color/text_secondary" />
+
+    <ImageButton
         android:id="@+id/btnDeleteScene"
         android:layout_width="32dp"
         android:layout_height="32dp"

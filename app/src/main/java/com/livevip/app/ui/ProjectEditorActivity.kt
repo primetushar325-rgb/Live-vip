@@ -743,6 +743,10 @@ class ProjectEditorActivity : AppCompatActivity() {
                     OverlayType.TEXT, OverlayType.LOWER_THIRD, OverlayType.SCROLLING_TEXT ->
                         R.drawable.ic_text_overlay
                     OverlayType.BORDER -> R.drawable.ic_layers
+                    OverlayType.VIDEO -> R.drawable.ic_folder_video
+                    OverlayType.GIF -> R.drawable.ic_analytics
+                    OverlayType.SUBSCRIBE -> R.drawable.ic_broadcast
+                    OverlayType.BACKGROUND -> R.drawable.ic_image
                 }
             )
             holder.b.overlayEnabled.isChecked = config.enabled

@@ -39,7 +39,9 @@ enum class CanvasAspect(val label: String, val ratioW: Int, val ratioH: Int) {
  * STRETCH — explicit distortion. Only when the user asks for it. Never default.
  * CUSTOM  — user zoom/pan/rotation on top of a proportion-correct FIT base.
  */
-enum class FitMode { FIT, FILL, STRETCH, CUSTOM }
+enum class FitMode(val label: String) {
+    FIT("Fit"), FILL("Fill"), STRETCH("Stretch"), CUSTOM("Custom")
+}
 
 /** Compositor animations for layers — time-based, rendered into the stream. */
 enum class OverlayAnimation(val label: String) {

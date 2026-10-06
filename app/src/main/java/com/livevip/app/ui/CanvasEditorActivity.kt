@@ -750,11 +750,11 @@ class CanvasEditorActivity : AppCompatActivity() {
     }
 
     private fun launchPicker(
-        picker: androidx.activity.result.ActivityResultLauncher<List<String>>,
+        picker: androidx.activity.result.ActivityResultLauncher<Array<String>>,
         mime: String
     ) {
         try {
-            picker.launch(listOf(mime))
+            picker.launch(arrayOf(mime))
         } catch (_: Throwable) {
             Snackbar.make(binding.root, R.string.picker_unavailable, Snackbar.LENGTH_LONG).show()
         }

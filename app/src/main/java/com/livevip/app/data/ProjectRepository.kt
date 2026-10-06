@@ -2,6 +2,7 @@ package com.livevip.app.data
 
 import android.content.Context
 import com.livevip.app.data.db.LiveVipDatabase
+import com.livevip.app.overlay.OverlayConfig
 import com.livevip.app.streaming.BroadcastPlan
 import com.livevip.app.streaming.DestinationConfig
 import java.util.concurrent.ExecutorService
