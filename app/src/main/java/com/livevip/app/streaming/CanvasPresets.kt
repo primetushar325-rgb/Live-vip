@@ -37,7 +37,7 @@ object CanvasPresets {
         CanvasAspect.PORTRAIT_4_5 -> listOf(
             CanvasPreset("1080×1350 • 4:5 HD", 1080, 1350),
             CanvasPreset("864×1080 • 4:5", 864, 1080),
-            CanvasPreset("540×675 • 4:5 SD", 540, 675)
+            CanvasPreset("432×540 • 4:5 SD", 432, 540)
         )
         CanvasAspect.CUSTOM -> listOf(
             CanvasPreset("1920×1080", 1920, 1080),
@@ -148,10 +148,17 @@ object CanvasPresets {
             StreamPlatform.CUSTOM_RTMP, StreamPlatform.CUSTOM_RTMPS -> true
         }
 
-    private fun nearestEven(width: Int, height: Int): CanvasPreset? =
-        CanvasPresets.allPresets().firstOrNull {
-            it.width >= width && it.height >= height
-        }
+    private fun nearestEven(width: Int, height: Int): CanvasPreset {
+        // Round down to even (keeps the requested aspect class), clamped to
+        // the encoder-safe range. This IS the suggestion users see.
+        var w = width - (width % 2)
+        var h = height - (height % 2)
+        if (w < 128) w = 128
+        if (h < 128) h = 128
+        if (w > 4096) w = 4096
+        if (h > 4096) h = 4096
+        return CanvasPreset("${w}×${h}", w, h)
+    }
 
     /** Largest preset ≤ the request that the encoder supports, preferring fps first. */
     private fun fallbackPreset(

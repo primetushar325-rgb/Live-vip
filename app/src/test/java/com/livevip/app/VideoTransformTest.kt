@@ -48,9 +48,10 @@ class VideoTransformTest {
         val expectedHalfH = (1080f / 1920f) / (1920f / 1080f) // 0.3164
         assertEquals(-expectedHalfH, y(q, 0), eps)
         assertEquals(expectedHalfH, y(q, 2), eps)
-        // Proportion check in canvas pixels: 1080 × (2*0.3164*1920/2)=607 → 16:9.
+        // Proportion check in canvas pixels: NDC 1.0 = half canvas edge.
+        // Full quad height = 2 * expectedHalfH * (1920/2) = 607.5 px.
         val pixelW = 1080f
-        val pixelH = 2f * expectedHalfH * 1920f
+        val pixelH = expectedHalfH * 1920f
         assertEquals(16f / 9f, pixelW / pixelH, 0.001f)
     }
 
@@ -106,11 +107,13 @@ class VideoTransformTest {
     fun `90 degree rotation swaps the quad extents`() {
         val q0 = VideoTransform().quadFor(1920, 1080, 1080, 1920)
         val q90 = VideoTransform(rotationDeg = 90f).quadFor(1920, 1080, 1080, 1920)
-        // Unrotated: x ±1, y ±0.3164 → rotated: x ±0.3164, y ±1.
-        assertEquals(y(q0, 2), x(q90, 1), eps)
-        assertEquals(y(q0, 0), x(q90, 0), eps)
-        assertEquals(x(q0, 1), y(q90, 2), eps)
-        assertEquals(x(q0, 0), y(q90, 0), eps)
+        // 90° CCW maps (x, y) → (-y, x): the quad's x-extents become the old
+        // y-extents and vice versa. Vertex-level checks:
+        // unrotated BL(-1, -0.3164) → (0.3164, -1), TR(1, 0.3164) → (-0.3164, 1).
+        assertEquals(y(q0, 2), x(q90, 0), eps)    // +0.3164
+        assertEquals(x(q0, 1), y(q90, 1), eps)    // +1
+        assertEquals(-y(q0, 2), x(q90, 2), eps)   // -0.3164
+        assertEquals(-x(q0, 1), y(q90, 0), eps)   // -1
     }
 
     @Test
