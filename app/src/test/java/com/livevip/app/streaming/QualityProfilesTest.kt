@@ -69,6 +69,18 @@ class QualityProfilesTest {
     }
 
     @Test
+    fun `720p30 sits in the YouTube 4 to 6 Mbps band (first-test profile)`() {
+        val b = QualityProfiles.recommendedBitrateKbps(720, 30)
+        assertTrue("got $b", b in 4_000..6_000)
+    }
+
+    @Test
+    fun `1080p30 stays within YouTube recommendations`() {
+        val b = QualityProfiles.recommendedBitrateKbps(1080, 30)
+        assertTrue("got $b", b in 5_000..10_000)
+    }
+
+    @Test
     fun `bitrate options are sorted and include the recommendation`() {
         val options = QualityProfiles.bitrateOptionsFor(720)
         assertEquals(options, options.sorted())

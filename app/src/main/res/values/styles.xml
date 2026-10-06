@@ -41,4 +41,13 @@
         <item name="android:textSize">13sp</item>
         <item name="android:textColor">@color/text_primary</item>
     </style>
+    <!-- Developer diagnostics row (monospace values, small, dense) -->
+    <style name="DiagRow">
+        <item name="android:layout_width">match_parent</item>
+        <item name="android:layout_height">wrap_content</item>
+        <item name="android:layout_marginTop">6dp</item>
+        <item name="android:textSize">11sp</item>
+        <item name="android:textColor">@color/text_secondary</item>
+        <item name="android:fontFamily">monospace</item>
+    </style>
 </resources>

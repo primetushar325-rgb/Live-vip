@@ -11,7 +11,7 @@
     <!-- Stream states (real states only) -->
     <string name="state_offline">OFFLINE</string>
     <string name="state_connecting">CONNECTING…</string>
-    <string name="state_publishing">PUBLISHING…</string>
+    <string name="state_publishing">CONNECTED — SENDING…</string>
     <string name="state_live">LIVE</string>
     <string name="state_reconnecting">RECONNECTING…</string>
     <string name="state_error">ERROR</string>
@@ -62,10 +62,15 @@
     <string name="error_key_empty">Enter the stream key first.</string>
     <string name="error_url_invalid">Invalid RTMP URL — it must start with rtmp:// or rtmps://</string>
     <string name="error_start_failed">Could not start: %1$s</string>
+    <string name="error_preview_not_ready">Preview is not ready yet — wait a moment.</string>
+    <string name="error_preview_failed">Video preview failed. Please reselect the video.</string>
     <string name="mic_permission_denied">Microphone permission denied — enable it in system settings to use the mic.</string>
     <string name="settings_locked_while_live">You are live — settings are locked until you stop.</string>
     <string name="format_switched">Format: %1$s • %2$s</string>
     <string name="video_selected_toast">Video selected: %1$s</string>
     <string name="video_unreadable">This video can\'t be read on this device. Try an MP4 (H.264/AAC) file.</string>
     <string name="preview_failed">Preview failed: %1$s</string>
+
+    <!-- Developer diagnostics (long-press the app title to toggle) -->
+    <string name="label_diagnostics">DEVELOPER DIAGNOSTICS</string>
 </resources>

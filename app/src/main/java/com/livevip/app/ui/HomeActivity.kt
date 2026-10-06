@@ -11,6 +11,7 @@ import android.os.Looper
 import android.view.GestureDetector
 import android.view.MotionEvent
 import android.view.ScaleGestureDetector
+import android.view.SurfaceHolder
 import android.view.View
 import android.widget.FrameLayout
 import android.widget.Toast
@@ -34,19 +35,27 @@ import com.livevip.app.streaming.LiveStreamingManager
 import com.livevip.app.streaming.StreamConfig
 import com.livevip.app.streaming.StreamState
 import com.livevip.app.streaming.StreamStats
+import java.util.Locale
 import java.util.concurrent.Executors
 import kotlin.math.abs
 
 /**
- * THE ONE SCREEN (Part 5 spec §20) — OBS-style mobile broadcaster.
+ * THE ONE SCREEN — OBS-style mobile broadcaster.
+ *
+ * PREVIEW SURFACE LIFECYCLE (Part 5.1 regression fix):
+ * RootEncoder's `startPreview(surfaceView)` binds `holder.surface` ONE-SHOT:
+ * it THROWS on an invalid surface and never registers holder callbacks. The
+ * Part 5 regression started/resized the surface and bound it in the same
+ * tick — the surface was destroyed by the pending resize right after, so the
+ * preview (and every later rebind, blocked by isOnPreview) stayed BLACK.
+ *
+ * The proven pattern (restored): bind ONLY from `surfaceCreated`, stop the
+ * preview in `onPause` when not live, and resize via layoutParams without
+ * starting — surface recreation re-triggers `surfaceCreated` → rebind.
  *
  * Preview IS the live output: the same GL transform compositor renders to
- * the preview surface and to the encoder. Gestures (drag / pinch /
- * double-tap reset) live-update the composition without touching encoder,
- * RTMP or timestamps.
- *
- * UI NEVER owns the engine lifetime: the foreground service + singleton
- * manager do. Activity destroy/recreate cannot stop a stream.
+ * the preview surface and the encoder. Gestures live-update the composition
+ * without touching the encoder, RTMP or timestamps.
  */
 class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
@@ -58,7 +67,10 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     private var aspect: CanvasAspect = CanvasAspect.LANDSCAPE_16_9
     private var transform: VideoTransform = VideoTransform()
     private var sessionBannerShown = false
-    private var previewStarted = false
+
+    // ---- Preview surface lifecycle (THE gate — see class doc) ----
+    private var surfaceReady = false
+    private var lastHealth: LiveStreamingManager.StreamHealth? = null
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val ioExecutor = Executors.newSingleThreadExecutor()
@@ -95,22 +107,29 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         manager.addListener(this)
         updateStateUi(manager.state, null)
         enterLiveUiIfStreaming()
-
-        // Size the preview once the card has a measured width, then start.
-        binding.previewCard.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            if (!previewStarted) startPreviewPipeline()
+        if (SettingsRepository.get(this).debugLogging) {
+            binding.diagnosticsCard.visibility = View.VISIBLE
         }
     }
 
     override fun onResume() {
         super.onResume()
-        // The SurfaceView is destroyed between pause/stop — rebind preview.
-        if (previewStarted && !manager.isBroadcasting) {
-            startPreviewPipeline(restart = true)
+        // Rebind after pause (onPause stopped the preview when not live) or
+        // after the surface was recreated. Never while live — the engine
+        // owns the preview then; surfaceCreated handles that case.
+        if (!manager.isBroadcasting && !manager.isOnPreview) {
+            startPreviewIfReady()
         }
     }
 
     override fun onPause() {
+        // PROVEN pattern: releasing the preview while paused resets the
+        // engine's isOnPreview flag, so the next startPreview cannot hit the
+        // "Preview already started" exception that caused the black screen.
+        // While LIVE the preview is never touched — the stream must survive.
+        if (!manager.isBroadcasting) {
+            manager.stopPreview()
+        }
         // Persist the gesture transform once, not on every ACTION_MOVE.
         persistTransform()
         super.onPause()
@@ -193,6 +212,42 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     // ------------------------------------------------------------------
 
     private fun wireUI() {
+        // Preview surface lifecycle — bind ONLY when the surface exists.
+        binding.surfaceView.holder.addCallback(object : SurfaceHolder.Callback {
+            override fun surfaceCreated(holder: SurfaceHolder) {
+                surfaceReady = true
+                if (manager.isBroadcasting) {
+                    // Activity recreated while LIVE: rebind the preview only.
+                    manager.rebindLivePreview(binding.surfaceView)
+                } else {
+                    startPreviewIfReady()
+                }
+            }
+
+            override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) =
+                Unit // same surface, new size — the GL pipeline keeps drawing
+
+            override fun surfaceDestroyed(holder: SurfaceHolder) {
+                surfaceReady = false
+            }
+        })
+
+        // Layout changes only RE-SIZE the surface (aspect/format changes);
+        // binding happens exclusively in surfaceCreated — never here.
+        binding.previewCard.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            applyPreviewAspect()
+        }
+
+        // Developer diagnostics toggle (Phase 14) — hidden gesture.
+        binding.appTitle.setOnLongClickListener {
+            val settings = SettingsRepository.get(this)
+            settings.debugLogging = !settings.debugLogging
+            binding.diagnosticsCard.visibility =
+                if (settings.debugLogging) View.VISIBLE else View.GONE
+            toast(if (settings.debugLogging) "Diagnostics ON" else "Diagnostics OFF")
+            true
+        }
+
         binding.btnSelectVideo.setOnClickListener { pickVideo.launch(arrayOf("video/*")) }
 
         binding.btnFormatLandscape.setOnClickListener { setAspect(CanvasAspect.LANDSCAPE_16_9) }
@@ -325,12 +380,13 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         if (newAspect == aspect) return
         aspect = newAspect
         SettingsRepository.get(this).outputAspect = aspect.name
-        // Pan/zoom is relative to the canvas — start fresh on a new format.
+        // Pan/zoom is relative to the frame — start fresh on a new format,
+        // never carry a stale transform matrix across aspect ratios.
         transform = VideoTransform()
         persistTransform()
         refreshFormatButtons()
         refreshPreviewBadges()
-        startPreviewPipeline(restart = true)
+        startPreviewIfReady()
         val preset = currentPreset()
         toast(getString(R.string.format_switched, aspect.label, "${preset.width}×${preset.height}"))
     }
@@ -342,7 +398,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         SettingsRepository.get(this).videoQuality = quality
         refreshQualitySelection()
         refreshPreviewBadges()
-        startPreviewPipeline(restart = true)
+        startPreviewIfReady()
     }
 
     private fun setFps(fps: Int) {
@@ -352,7 +408,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         SettingsRepository.get(this).videoFps = fps
         refreshFpsSelection()
         refreshPreviewBadges()
-        startPreviewPipeline(restart = true)
+        startPreviewIfReady()
     }
 
     private fun refreshFormatButtons() {
@@ -408,7 +464,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 refreshVideoInfoLine()
                 refreshPreviewBadges()
                 toast(getString(R.string.video_selected_toast, selectedVideo?.name ?: "?"))
-                startPreviewPipeline(restart = true)
+                startPreviewIfReady()
             }
         }
     }
@@ -432,49 +488,56 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     }
 
     // ------------------------------------------------------------------
-    // Preview (== live output)
+    // Preview (== live output). Sizing here, binding in surfaceCreated.
     // ------------------------------------------------------------------
 
     /**
-     * Size the preview surface to the OUTPUT aspect ratio and prepare the
-     * engine at the encoder resolution — the SAME pipeline the encoder uses.
+     * Size the preview surface to the OUTPUT aspect ratio. Sizing ONLY —
+     * never binds (the pending layout/resize would destroy the surface and
+     * blacken the preview; binding happens in surfaceCreated).
      */
-    private fun startPreviewPipeline(restart: Boolean = false) {
-        val video = selectedVideo
-        if (video == null) {
-            binding.previewPlaceholder.visibility = View.VISIBLE
-            return
-        }
-        binding.previewPlaceholder.visibility = View.GONE
-        if (manager.isBroadcasting) return // live preview already runs
-
+    private fun applyPreviewAspect() {
         val preset = currentPreset()
         val card = binding.previewCard
         val cardW = card.width
-        if (cardW <= 0) return // wait for layout listener
-
-        // Responsive sizing: largest output-aspect rect that fits the card
-        // width and ≤ 42% of the screen height. No fixed dp anywhere.
+        if (cardW <= 0) return
+        // Responsive: largest output-aspect rect fitting the card width and
+        // ≤ 42% of the screen height. No fixed dp anywhere.
         val maxH = resources.displayMetrics.heightPixels * 0.42f
         val (w, h) = CanvasPreviewMath.fit(
             cardW.toFloat(), maxH, preset.width.toFloat(), preset.height.toFloat()
         )
         if (w <= 0f || h <= 0f) return
-
         card.layoutParams = card.layoutParams.apply { height = h.toInt() + 2 }
         binding.surfaceView.layoutParams = FrameLayout.LayoutParams(
             w.toInt(), h.toInt(), android.view.Gravity.CENTER
         )
+    }
 
-        if (restart || !previewStarted) {
-            previewStarted = true
-            val config = StreamConfig.from(SettingsRepository.get(this))
-            val error = manager.startTransformPreview(
-                this, binding.surfaceView, video.uriParsed(), config, transform
-            )
-            if (error != null) {
-                toast(getString(R.string.preview_failed, error))
-            }
+    /**
+     * Start (or rebind) the offline preview — called ONLY when the surface
+     * exists (surfaceCreated / user action while surface is up).
+     * Works fully OFFLINE: no URL, no key, no RTMP, no encoder output.
+     */
+    private fun startPreviewIfReady() {
+        if (!surfaceReady || isFinishing || isDestroyed) return
+        val video = selectedVideo
+        if (video == null) {
+            binding.previewPlaceholder.visibility = View.VISIBLE
+            return
+        }
+        if (manager.isBroadcasting) {
+            manager.rebindLivePreview(binding.surfaceView)
+            return
+        }
+        applyPreviewAspect()
+        binding.previewPlaceholder.visibility = View.GONE
+        val config = StreamConfig.from(SettingsRepository.get(this))
+        val error = manager.startTransformPreview(
+            this, binding.surfaceView, video.uriParsed(), config, transform
+        )
+        if (error != null) {
+            toast(getString(R.string.preview_failed, error))
         }
     }
 
@@ -512,13 +575,14 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     }
 
     // ------------------------------------------------------------------
-    // START / STOP
+    // START / STOP — Phase 7: never start RTMP on a dead preview
     // ------------------------------------------------------------------
 
     private fun startLive() {
         if (manager.isBroadcasting) return
         val video = selectedVideo
         if (video == null) { toast(R.string.error_no_video); return }
+        if (!surfaceReady) { toast(R.string.error_preview_not_ready); return }
 
         val url = binding.inputUrl.text.toString().trim()
         if (url.isEmpty()) { toast(R.string.error_url_empty); return }
@@ -529,6 +593,30 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         val key = binding.inputKey.text.toString().trim()
         if (key.isEmpty()) { toast(R.string.error_key_empty); return }
 
+        // Pre-flight on the IO thread: the saved URI must still be readable
+        // AND the decoder must be producing frames (the preview is alive).
+        // A black/failed preview NEVER starts an RTMP session.
+        ioExecutor.execute {
+            val videoStillReadable = runCatching {
+                contentResolver.openFileDescriptor(video.uriParsed(), "r")?.use { true } ?: false
+            }.getOrDefault(false)
+            val flowing = runCatching { manager.decoderFlowing() }.getOrDefault(false)
+            mainHandler.post {
+                if (isFinishing || isDestroyed) return@post
+                if (!videoStillReadable) {
+                    toast(R.string.error_preview_failed)
+                    return@post
+                }
+                if (!flowing) {
+                    toast(R.string.error_preview_failed)
+                    return@post
+                }
+                reallyStartLive()
+            }
+        }
+    }
+
+    private fun reallyStartLive() {
         persistStreamInputs()
         val settings = SettingsRepository.get(this)
         val config = StreamConfig.from(settings)
@@ -544,7 +632,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         // activity destroy / lock / background until explicit STOP.
         LiveStreamingService.start(this)
         val error = manager.startStream(
-            this, config, video.uriParsed(), binding.surfaceView, transform
+            this, config, selectedVideo?.uriParsed(), binding.surfaceView, transform
         )
         if (error != null) {
             toast(getString(R.string.error_start_failed, error))
@@ -579,7 +667,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                     }
                     exitLiveUi()
                     // Rebind the offline preview with the same composition.
-                    startPreviewPipeline(restart = true)
+                    if (surfaceReady) startPreviewIfReady()
                 }
                 else -> enterLiveUi()
             }
@@ -662,16 +750,55 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 )
                 binding.sessionBanner.visibility = View.VISIBLE
             }
+
+            renderDiagnostics(stats)
         }
     }
 
     override fun onHealthChanged(health: LiveStreamingManager.StreamHealth) {
         runOnUiThread {
+            lastHealth = health
             val c = health.components
             binding.statComponents.text =
                 "Decoder ${c.decoder} • Encoder ${c.encoder} • Muxer ${c.muxer} • " +
                     "RTMP ${c.rtmps} • Ingest ${c.ingest}"
+            renderDiagnostics(manager.stats)
         }
+    }
+
+    // ------------------------------------------------------------------
+    // Developer diagnostics (Phase 14) — real probes only, no keys ever
+    // ------------------------------------------------------------------
+
+    private fun renderDiagnostics(stats: StreamStats) {
+        if (!SettingsRepository.get(this).debugLogging) return
+        if (binding.diagnosticsCard.visibility != View.VISIBLE) {
+            binding.diagnosticsCard.visibility = View.VISIBLE
+        }
+        val c = lastHealth?.components
+        binding.diagVideo.text =
+            if (selectedVideo != null) "READY" else "ERROR — no video selected"
+        binding.diagDecoder.text = c?.decoder ?: "—"
+        binding.diagPreview.text = when {
+            manager.isBroadcasting && stats.sentVideoFrames > 0 -> "FRAMES RECEIVED (${stats.sentVideoFrames})"
+            c?.decoder == "HEALTHY" -> "FRAMES RECEIVED"
+            else -> "NO FRAMES"
+        }
+        binding.diagEncoder.text = buildString {
+            append(c?.encoder ?: "—")
+            if (manager.encoderFallbackActive()) append(" (854×480 fallback)")
+        }
+        binding.diagAudio.text = when {
+            manager.state == StreamState.LIVE || manager.state == StreamState.PUBLISHING ->
+                "SENDING (${stats.sentAudioFrames} frames)"
+            else -> c?.muxer ?: "—"
+        }
+        binding.diagRtmp.text = c?.rtmps ?: "—"
+        binding.diagFps.text = "${stats.fps} FPS • dropped ${stats.droppedFrames}"
+        binding.diagPackets.text =
+            "video ${stats.sentVideoFrames} • audio ${stats.sentAudioFrames}"
+        binding.diagBytes.text = formatBytes(stats.bytesSent)
+        binding.diagError.text = stats.lastError ?: "none"
     }
 
     // ------------------------------------------------------------------
@@ -682,13 +809,20 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         val h = seconds / 3600
         val m = (seconds % 3600) / 60
         val s = seconds % 60
-        return String.format(java.util.Locale.US, "%02d:%02d:%02d", h, m, s)
+        return String.format(Locale.US, "%02d:%02d:%02d", h, m, s)
     }
 
     private fun formatAvSync(ms: Long): String = when {
         abs(ms) <= 1 -> "±0 ms"
         ms > 0 -> "+${ms} ms"
         else -> "${ms} ms"
+    }
+
+    private fun formatBytes(bytes: Long): String = when {
+        bytes >= 1_000_000_000 -> String.format(Locale.US, "%.2f GB", bytes / 1e9)
+        bytes >= 1_000_000 -> String.format(Locale.US, "%.1f MB", bytes / 1e6)
+        bytes >= 1_000 -> String.format(Locale.US, "%.1f KB", bytes / 1e3)
+        else -> "$bytes B"
     }
 
     private companion object {

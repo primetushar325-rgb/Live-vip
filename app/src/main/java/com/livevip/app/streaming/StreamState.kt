@@ -32,5 +32,13 @@ data class StreamStats(
     /** True only after sustained verified media flow (ingest verification). */
     val mediaVerified: Boolean = false,
     /** Measured A/V timeline drift (video coverage - audio coverage, ms). */
-    val avSyncMs: Long = 0
+    val avSyncMs: Long = 0,
+    /** Actual H.264 frames handed to the RTMP sender (library counter). */
+    val sentVideoFrames: Long = 0,
+    /** Actual AAC frames handed to the RTMP sender (library counter). */
+    val sentAudioFrames: Long = 0,
+    /** Bytes sent, integrated from the library-measured socket bitrate. */
+    val bytesSent: Long = 0,
+    /** Last honest error (sanitized — no urls, no keys). */
+    val lastError: String? = null
 )

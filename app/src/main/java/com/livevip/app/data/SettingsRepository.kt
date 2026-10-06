@@ -77,9 +77,9 @@ class SettingsRepository private constructor(context: Context) {
         get() = prefs.getString(KEY_OUTPUT_ASPECT, "LANDSCAPE_16_9") ?: "LANDSCAPE_16_9"
         set(value) = prefs.edit().putString(KEY_OUTPUT_ASPECT, value).apply()
 
-    /** Quality preset: "auto" / "480p" / "720p" / "1080p". */
+    /** Quality preset: "auto" / "480p" / "720p" / "1080p". Default 720p (Phase 10). */
     var videoQuality: String
-        get() = prefs.getString(KEY_VIDEO_QUALITY, "auto") ?: "auto"
+        get() = prefs.getString(KEY_VIDEO_QUALITY, "720p") ?: "720p"
         set(value) = prefs.edit().putString(KEY_VIDEO_QUALITY, value).apply()
 
     /** Saved video transform (JSON) — zoom/pan survive app restarts. */

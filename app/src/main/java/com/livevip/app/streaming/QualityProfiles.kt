@@ -47,7 +47,7 @@ object QualityProfiles {
         height >= 2000 -> if (fps > 30) 40000 else 25000   // 4K
         height >= 1400 -> if (fps > 30) 14000 else 9000    // 1440p
         height >= 1080 -> if (fps > 30) 9000 else 6000     // 1080p
-        height >= 720 -> if (fps > 30) 4500 else 3500      // 720p
+        height >= 720 -> if (fps > 30) 5500 else 4500      // 720p (YouTube 4–6 Mbps)
         height >= 480 -> if (fps > 30) 2500 else 1800      // 480p
         else -> if (fps > 30) 1200 else 800                // 360p
     }

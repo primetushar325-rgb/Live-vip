@@ -128,6 +128,11 @@ object LiveStreamingManager {
     private var reconnectTotal = 0
     private var streamStartElapsed = 0L
     private var lastBitrateKbps = 0L
+
+    // Honest diagnostics (Phase 14) — real counters, sanitized errors only.
+    @Volatile private var lastError: String? = null
+    @Volatile private var bytesSentTotal = 0L
+    @Volatile private var encoderFellBack = false
     @Volatile private var loopCount = 0
     private var debugLogging = false
     private var prepared = false
@@ -205,6 +210,7 @@ object LiveStreamingManager {
                 setState(StreamState.LIVE, "Ingest verified — you are live")
             }
             is IngestVerifier.Result.Failed -> {
+                lastError = verdict.reason
                 mainHandler.post {
                     internalStop(StreamState.ERROR, verdict.reason)
                 }
@@ -237,6 +243,7 @@ object LiveStreamingManager {
         }
 
         override fun onConnectionFailed(reason: String) {
+            lastError = sanitize(reason)
             if (debugLogging) Log.w(TAG, "Connection failed: ${sanitize(reason)}")
             val cfg = activeConfig
             val s = singleStream ?: return
@@ -269,6 +276,7 @@ object LiveStreamingManager {
         }
 
         override fun onAuthError() {
+            lastError = "Authentication failed — check your stream key"
             mainHandler.post {
                 internalStop(StreamState.ERROR, "Authentication failed — check your stream key")
             }
@@ -278,6 +286,8 @@ object LiveStreamingManager {
 
         override fun onNewBitrate(bitrate: Long) {
             lastBitrateKbps = bitrate / 1000
+            // Library-measured socket throughput (1 Hz): integrate → bytes sent.
+            bytesSentTotal += bitrate / 8
         }
     }
 
@@ -437,13 +447,22 @@ object LiveStreamingManager {
                 false
             }
             if (!videoOk) {
+                // Honest fallback (visible in diagnostics, never silent):
                 videoOk = try {
                     s.prepareVideo(854, 480, 1200 * 1024, 30, 2, rotation)
                 } catch (t: Throwable) {
                     false
                 }
+                if (videoOk) {
+                    encoderFellBack = true
+                    lastError = "Encoder fell back to 854×480 — " +
+                        "${config.videoWidth}×${config.videoHeight} is not supported on this device"
+                }
             }
-            if (!videoOk) return "Video encoder unavailable — no compatible H.264 encoder"
+            if (!videoOk) {
+                lastError = "Video encoder unavailable — no compatible H.264 encoder"
+                return lastError!!
+            }
 
             prepared = true
             return null
@@ -475,6 +494,9 @@ object LiveStreamingManager {
         reconnectAttempt = 0
         reconnectTotal = 0
         loopCount = 0
+        lastError = null
+        bytesSentTotal = 0
+        encoderFellBack = false
 
         setState(StreamState.CONNECTING, "Preparing ${if (mode == Mode.VIDEO) "video" else "camera"}…")
         val sourceError = configureSources(context, videoUri, previewOnly = false)
@@ -530,8 +552,9 @@ object LiveStreamingManager {
             null
         } catch (t: Throwable) {
             if (debugLogging) Log.e(TAG, "startStream failed", t)
+            lastError = "Could not start the stream: ${t.message ?: "unknown error"}"
             internalStop(StreamState.ERROR, null)
-            "Could not start the stream: ${t.message ?: "unknown error"}"
+            lastError!!
         }
     }
 
@@ -773,16 +796,30 @@ object LiveStreamingManager {
             val s = engine(context)
             if (s.isStreaming) return null // live preview already shows the composition
 
-            // Same video + same output resolution ⇒ the encoders are already
-            // prepared correctly. The preview surface may simply have been
-            // recreated (layout/resize) — rebind it WITHOUT re-preparing the
-            // encoder (no churn on every format tap or surface change).
-            val key = "${videoUri}|${config.videoWidth}x${config.videoHeight}"
+            // ROOT-CAUSE GUARD (Part 5.1): RootEncoder's startPreview binds
+            // holder.surface ONE-SHOT and THROWS on an invalid surface. Never
+            // bind a surface that does not exist yet (first layout) or is
+            // mid-recreation (resize) — report honestly instead of black.
+            if (!view.holder.surface.isValid) {
+                return "Preview surface not ready yet"
+            }
+
+            // Same video + same output resolution + fps ⇒ the encoders are
+            // already prepared correctly. The preview surface may simply have
+            // been recreated (layout/resize/resume) — rebind WITHOUT
+            // re-preparing the encoder.
+            // NOTE: after a surface recreation the engine still reports
+            // isOnPreview=true while holding the DEAD surface — stopPreview
+            // first, or startPreview throws IllegalStateException (the Part 5
+            // black-preview regression).
+            val key = "${videoUri}|${config.videoWidth}x${config.videoHeight}|${config.fps}"
             if (key == previewKey) {
                 try {
+                    if (s.isOnPreview) s.stopPreview()
                     s.startPreview(view)
                     return null
                 } catch (_: Throwable) {
+                    // fall through: full re-prepare heals any stale state
                 }
             }
             try {
@@ -809,6 +846,49 @@ object LiveStreamingManager {
 
     /** Identifies the composition the preview is currently prepared for. */
     private var previewKey: String? = null
+
+    /**
+     * Re-bind the live preview to a (re)created activity surface while LIVE.
+     * The encoder, RTMP session and timestamps are untouched — only the
+     * preview EGL surface swaps. Safe to call on every surfaceCreated.
+     */
+    fun rebindLivePreview(view: android.view.SurfaceView) {
+        val s = stream ?: return
+        if (!s.isStreaming) return
+        try {
+            if (!view.holder.surface.isValid) return
+            if (s.isOnPreview) s.stopPreview()
+            s.startPreview(view)
+        } catch (t: Throwable) {
+            if (debugLogging) Log.w(TAG, "live preview rebind failed: ${t.message}")
+        }
+    }
+
+    /**
+     * HONEST PRE-FLIGHT (Phase 7): true when the video decoder is actively
+     * producing frames. START LIVE must never begin an RTMP session on top
+     * of a dead/black preview.
+     */
+    fun decoderFlowing(): Boolean {
+        if (mode != Mode.VIDEO) return true
+        val src = videoFileSource ?: return false
+        return try {
+            val t1 = src.getTime()
+            Thread.sleep(250)
+            val t2 = src.getTime()
+            // Flowing = position moved. A loop boundary resets it to 0 —
+            // t2 != t1 still holds; a stalled decoder repeats the same time.
+            t1 >= 0 && t2 != t1
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    /** True when the encoder silently fell back to 854×480 (diagnostics). */
+    fun encoderFallbackActive(): Boolean = encoderFellBack
+
+    /** Last honest error (sanitized — never contains urls or keys). */
+    fun lastStreamError(): String? = lastError
 
     // ------------------------------------------------------------------
     // Health monitoring: stats + timeline guard + watchdogs
@@ -912,7 +992,11 @@ object LiveStreamingManager {
             loopCount = loopCount,
             reconnects = reconnectTotal,
             mediaVerified = mediaVerified(),
-            avSyncMs = timelineGuard.snapshot().avDriftMs
+            avSyncMs = timelineGuard.snapshot().avDriftMs,
+            sentVideoFrames = totalSentVideoFrames(),
+            sentAudioFrames = totalSentAudioFrames(),
+            bytesSent = bytesSentTotal,
+            lastError = lastError
         )
 
         // Timeline continuity validation (real encoded-frame timeline).

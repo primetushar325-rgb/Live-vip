@@ -38,6 +38,7 @@
             android:gravity="center_vertical">
 
             <TextView
+                android:id="@+id/appTitle"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
@@ -715,6 +716,49 @@
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
                     tools:text="Loop #3 • Reconnects 0" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ============ DEVELOPER DIAGNOSTICS (toggle: long-press title) ============ -->
+        <com.google.android.material.card.MaterialCardView
+            android:id="@+id/diagnosticsCard"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            android:visibility="gone"
+            app:cardBackgroundColor="@color/card_graphite"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/outline_subtle"
+            app:strokeWidth="1dp"
+            tools:visibility="gone">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_diagnostics"
+                    android:textColor="@color/secondary_cyan"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    android:letterSpacing="0.08"
+                    tools:ignore="SpUsage" />
+
+                <TextView android:id="@+id/diagVideo" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagDecoder" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagPreview" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagEncoder" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagAudio" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagRtmp" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagFps" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagPackets" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagBytes" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagError" style="@style/DiagRow" android:text="—" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>
