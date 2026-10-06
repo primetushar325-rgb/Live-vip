@@ -1,0 +1,14 @@
+<resources>
+    <color name="live_red">#E50914</color>
+    <color name="live_red_dark">#B00610</color>
+    <color name="stop_button">#37474F</color>
+
+    <color name="status_offline">#9E9E9E</color>
+    <color name="status_connecting">#FFB300</color>
+    <color name="status_live">#00E676</color>
+    <color name="status_reconnecting">#FF9100</color>
+    <color name="status_error">#FF5252</color>
+
+    <color name="preview_bg">#121214</color>
+    <color name="ic_launcher_background">#101014</color>
+</resources>
