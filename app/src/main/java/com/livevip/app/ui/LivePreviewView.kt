@@ -119,6 +119,9 @@ class LivePreviewView @JvmOverloads constructor(
                 true
             }
             mediaPlayer.prepareAsync()
+            postDelayed({
+                if (!firstFrame && player === mediaPlayer) onPreviewError?.invoke("VIDEO_DECODER_TIMEOUT")
+            }, 8_000L)
         } catch (security: SecurityException) {
             onPreviewError?.invoke("VIDEO_PERMISSION_DENIED")
         } catch (error: Exception) {
