@@ -14,7 +14,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import com.livevip.app.R
-import com.livevip.app.core.LiveEngine
+import com.livevip.app.engine.LiveEngine
 import com.livevip.app.databinding.ActivityLibraryBinding
 import com.livevip.app.store.LibraryStore
 import com.livevip.app.store.LibraryVideo

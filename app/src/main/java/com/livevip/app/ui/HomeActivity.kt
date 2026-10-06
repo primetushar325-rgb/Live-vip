@@ -637,7 +637,7 @@ class HomeActivity : AppCompatActivity(), LiveEngine.Listener {
             card.layoutParams.height = newCardHeight
             card.requestLayout()
         }
-        val surfaceParams = binding.surfaceView.layoutParams
+        val surfaceParams = binding.surfaceView.layoutParams as android.widget.FrameLayout.LayoutParams
         if (surfaceParams.width != w.toInt() || surfaceParams.height != h.toInt()) {
             surfaceParams.width = w.toInt()
             surfaceParams.height = h.toInt()
