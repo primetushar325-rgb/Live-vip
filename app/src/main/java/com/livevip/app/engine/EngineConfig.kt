@@ -34,7 +34,8 @@ data class EngineConfig(
 
     fun isValidUrl(): Boolean {
         val u = url.trim().lowercase()
-        return u.startsWith("rtmp://") || u.startsWith("rtmps://")
+        val schemeOk = u.startsWith("rtmp://") || u.startsWith("rtmps://")
+        return schemeOk && key.isNotBlank()
     }
 
     companion object {

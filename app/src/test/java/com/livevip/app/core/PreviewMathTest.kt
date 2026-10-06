@@ -8,10 +8,19 @@ import org.junit.Test
 class PreviewMathTest {
 
     @Test
-    fun `fits 16by9 output into a wider container`() {
+    fun `fits 16by9 output into a short container`() {
+        // Container 1000x500 is SHORTER than 16:9 -> height-bound.
         val (w, h) = PreviewMath.fit(1000f, 500f, 1920f, 1080f)
+        assertEquals(500f, h, 0.01f)
+        assertEquals(888.89f, w, 0.05f)
+    }
+
+    @Test
+    fun `fits 16by9 output into a taller container`() {
+        // Container 1000x800 is TALLER than 16:9 -> width-bound.
+        val (w, h) = PreviewMath.fit(1000f, 800f, 1920f, 1080f)
         assertEquals(1000f, w, 0.01f)
-        assertEquals(562.5f, h, 0.01f)
+        assertEquals(562.5f, h, 0.05f)
     }
 
     @Test

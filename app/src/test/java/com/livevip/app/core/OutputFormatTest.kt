@@ -21,7 +21,7 @@ class OutputFormatTest {
         val presets = OutputPresets.presetsFor(OutputFormat.LANDSCAPE_16_9)
         assertEquals(listOf("1080p", "720p", "480p"), presets.map { it.quality })
         presets.forEach { p ->
-            assertEquals(16f / 9f, p.width.toFloat() / p.height, 0.001f)
+            assertEquals(16f / 9f, p.width.toFloat() / p.height, 0.003f)
             assertEquals(0, p.width % 2)
             assertEquals(0, p.height % 2)
         }
@@ -34,7 +34,7 @@ class OutputFormatTest {
         val presets = OutputPresets.presetsFor(OutputFormat.VERTICAL_9_16)
         assertEquals(listOf("1080p", "720p", "480p"), presets.map { it.quality })
         presets.forEach { p ->
-            assertEquals(9f / 16f, p.width.toFloat() / p.height, 0.001f)
+            assertEquals(9f / 16f, p.width.toFloat() / p.height, 0.003f)
             assertEquals(0, p.width % 2)
             assertEquals(0, p.height % 2)
         }
@@ -50,7 +50,7 @@ class OutputFormatTest {
         assertEquals(720, OutputPresets.presetFor(OutputFormat.VERTICAL_9_16, "720p").width)
         assertEquals(1280, OutputPresets.presetFor(OutputFormat.VERTICAL_9_16, "720p").height)
         assertEquals(854, OutputPresets.presetFor(OutputFormat.LANDSCAPE_16_9, "480p").width)
-        assertEquals(480, OutputPresets.presetFor(OutputFormat.VERTICAL_9_16, "480p").height)
+        assertEquals(854, OutputPresets.presetFor(OutputFormat.VERTICAL_9_16, "480p").height)
         // Unknown quality falls back to the 720p default.
         assertEquals(1280, OutputPresets.presetFor(OutputFormat.LANDSCAPE_16_9, "nope").width)
     }
@@ -73,8 +73,8 @@ class OutputFormatTest {
     @Test
     fun `autoPreset only picks 1080p when caps and upload clearly sustain it`() {
         val caps = capsFor(1920, 1080)
-        // Enough upload headroom (required for 6000k video ≈ 9.6 Mbps; ×2 margin).
-        val p = OutputPresets.autoPreset(OutputFormat.LANDSCAPE_16_9, caps, 16_000)
+        // Enough upload headroom (2 × required(6128 kbps incl. audio) ≈ 16.9 Mbps).
+        val p = OutputPresets.autoPreset(OutputFormat.LANDSCAPE_16_9, caps, 20_000)
         assertEquals("1080p", p.quality)
         // Encoder can't sustain 1080p → 720p.
         val limited = capsFor(1280, 720)

@@ -8,7 +8,7 @@ import org.junit.Test
 /** Stream URL handling — key material is data, never a log message. */
 class EngineConfigTest {
 
-    private fun config(url: String, key: String = "abc-123") = EngineConfig(
+    private fun config(url: String, key: String = "app-123") = EngineConfig(
         url = url,
         key = key,
         videoWidth = 1280,
