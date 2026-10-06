@@ -67,7 +67,8 @@ class MainActivity : AppCompatActivity() {
     private val engineReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             if (intent.action != LiveStreamingForegroundService.ACTION_ENGINE_UPDATE) return
-            val state = intent.getStringExtra(LiveStreamingForegroundService.EXTRA_STATE) ?: "OFFLINE"
+            val rawState = intent.getStringExtra(LiveStreamingForegroundService.EXTRA_STATE) ?: "IDLE"
+            val state = if (rawState == "IDLE" || rawState == "STOPPED") "OFFLINE" else rawState
             statusText.text = "● $state"
             statusText.setTextColor(when (state) {
                 "STREAMING" -> getColor(R.color.green)
