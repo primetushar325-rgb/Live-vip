@@ -33,6 +33,7 @@ import com.livevip.app.databinding.ItemTemplateRowBinding
 import com.livevip.app.media.VideoRepository
 import com.livevip.app.overlay.CanvasAspect
 import com.livevip.app.overlay.CanvasConfig
+import com.livevip.app.overlay.CanvasPreviewMath
 import com.livevip.app.overlay.OverlayAnimation
 import com.livevip.app.overlay.OverlayConfig
 import com.livevip.app.overlay.OverlayType
