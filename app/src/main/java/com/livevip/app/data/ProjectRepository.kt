@@ -66,6 +66,24 @@ class ProjectRepository private constructor(context: Context) {
         db.savePlaylist(projectId, items)
     }
 
+    /**
+     * Part 2 canvas editor save: updates ONLY the projects row
+     * (name/settings/overlays/scenes/canvas). Destinations, playlist and
+     * encrypted stream keys are untouched — no re-insert, no key orphaning.
+     */
+    fun updateProjectShell(project: Project) {
+        if (project.id != 0L) db.updateProject(project)
+    }
+
+    // ---------------- Overlay templates (Part 2) ----------------
+
+    fun saveTemplate(name: String, layers: List<OverlayConfig>): Long =
+        db.insertTemplate(name, OverlayConfig.listToJson(layers))
+
+    fun templates(): List<OverlayTemplate> = db.templates()
+
+    fun deleteTemplate(id: Long) = db.deleteTemplate(id)
+
     fun deleteProject(project: Project) {
         db.destinationsFor(project.id).forEach { vault.removeDestinationKey(it.id) }
         db.deleteProject(project.id)
@@ -149,7 +167,8 @@ class ProjectRepository private constructor(context: Context) {
             metadata = com.livevip.app.streaming.LiveMetadata(
                 title = project.title,
                 description = project.description
-            )
+            ),
+            canvas = project.canvas
         )
         return plan to null
     }

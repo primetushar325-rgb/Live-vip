@@ -37,6 +37,8 @@ import com.livevip.app.relay.RelaySessionClient
 import com.livevip.app.service.LiveBubbleService
 import com.livevip.app.service.LiveStreamingService
 import com.livevip.app.streaming.BroadcastMode
+import com.livevip.app.streaming.CapabilityDetector
+import com.livevip.app.streaming.CanvasPresets
 import com.livevip.app.streaming.BroadcastPlan
 import com.livevip.app.streaming.LiveStreamingManager
 import com.livevip.app.streaming.LiveStreamingManager.Mode
@@ -441,6 +443,8 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.btnLibrary.setOnClickListener { openLibrary() }
         binding.btnProjects.setOnClickListener { openProjects() }
         binding.btnNewProject.setOnClickListener { newProject() }
+        binding.btnShortsLive.setOnClickListener { startModeProject(isShorts = true) }
+        binding.btnLandscapeLive.setOnClickListener { startModeProject(isShorts = false) }
         binding.btnEditProject.setOnClickListener {
             val project = currentProject
             if (project == null) newProject() else editProject(project)
@@ -507,6 +511,55 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
             Intent(this, ProjectEditorActivity::class.java)
                 .putExtra(ProjectEditorActivity.EXTRA_PROJECT_ID, 0L)
         )
+    }
+
+    /**
+     * Part 2 mode launchers: create a project preconfigured with a
+     * validated canvas (9:16 Shorts or 16:9 Landscape) and jump straight
+     * into the Canvas Editor.
+     */
+    private fun startModeProject(isShorts: Boolean) {
+        val caps = CapabilityDetector.videoEncoderCaps()
+        val preset = if (isShorts) {
+            CanvasPresets.shortsCanvas(caps)
+        } else {
+            CanvasPresets.landscapeCanvas(caps)
+        }
+        val repo = com.livevip.app.data.ProjectRepository.get(this)
+        val defaults = com.livevip.app.streaming.StreamConfig.from(settings)
+        val project = com.livevip.app.data.Project(
+            id = 0,
+            name = if (isShorts) "Shorts Live" else "Landscape Live",
+            mode = "VIDEO",
+            width = preset.width,
+            height = preset.height,
+            fps = defaults.fps,
+            videoBitrateKbps = defaults.videoBitrateKbps,
+            micEnabledByDefault = defaults.micEnabled,
+            canvasJson = com.livevip.app.overlay.CanvasConfig(
+                aspect = if (isShorts) com.livevip.app.overlay.CanvasAspect.PORTRAIT_9_16
+                else com.livevip.app.overlay.CanvasAspect.LANDSCAPE_16_9,
+                width = preset.width,
+                height = preset.height
+            ).toJson().toString()
+        )
+        repo.async({ r ->
+            val id = r.saveProject(project, emptyList(), emptyMap(), emptyList())
+            r.projectBundle(id)?.project
+        }) { saved ->
+            val id = saved?.id ?: 0L
+            if (id == 0L) {
+                newProject()
+            } else {
+                android.widget.Toast.makeText(
+                    this, R.string.shorts_project_created, android.widget.Toast.LENGTH_SHORT
+                ).show()
+                startActivity(
+                    Intent(this, CanvasEditorActivity::class.java)
+                        .putExtra(CanvasEditorActivity.EXTRA_PROJECT_ID, id)
+                )
+            }
+        }
     }
 
     private fun editProject(project: Project) {

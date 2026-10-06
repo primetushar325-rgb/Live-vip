@@ -71,6 +71,8 @@ class ProjectEditorActivity : AppCompatActivity() {
     private val overlays = mutableListOf<OverlayConfig>()
     private val scenes = mutableListOf<SceneConfig>()
     private var loopMode = LoopMode.LOOP_ALL
+    /** Part 2 live canvas persisted with the project. */
+    private var canvasJson = ""
 
     // Adapters
     private lateinit var playlistAdapter: PlaylistAdapter
@@ -102,6 +104,9 @@ class ProjectEditorActivity : AppCompatActivity() {
         setupAudio()
         setupOverlayButtons()
         binding.btnSaveProject.setOnClickListener { save() }
+        binding.btnOpenCanvas.setOnClickListener {
+            save(finishAfter = false) { openCanvasEditor() }
+        }
 
         if (projectId == 0L) {
             applyProject(defaultProject())
@@ -126,10 +131,56 @@ class ProjectEditorActivity : AppCompatActivity() {
         )
     }
 
+    private fun renderCanvasSummary() {
+        val canvas = com.livevip.app.overlay.CanvasConfig.fromJson(canvasJson)
+        binding.canvasFormatSummary.text = if (canvas != null) {
+            "${canvas.aspect.label} • ${canvas.resolutionLabel()} • ${canvas.transform.fitMode.label}"
+        } else {
+            getString(
+                if (selectedWidth >= selectedHeight)
+                    R.string.format_note_16_9 else R.string.format_note_9_16
+            )
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Refresh canvas + layers after returning from the canvas editor.
+        if (projectId != 0L && ::binding.isInitialized) {
+            repo.async({ it.projectBundle(projectId) }) { bundle ->
+                if (isFinishing || isDestroyed || bundle == null) return@async
+                canvasJson = bundle.project.canvasJson
+                overlays.clear()
+                overlays += bundle.project.overlays
+                scenes.clear()
+                scenes += bundle.project.scenes
+                overlaysAdapter.notifyDataSetChanged()
+                if (com.livevip.app.overlay.CanvasConfig.fromJson(canvasJson) != null) {
+                    // The canvas IS the encoded resolution — keep the quality
+                    // section in sync with it (BroadcastPlan validates this).
+                    setupQualityFor(
+                        bundle.project.width, bundle.project.height,
+                        bundle.project.fps, bundle.project.videoBitrateKbps
+                    )
+                }
+                renderCanvasSummary()
+            }
+        }
+    }
+
+    private fun openCanvasEditor() {
+        if (projectId == 0L) return
+        startActivity(
+            android.content.Intent(this, CanvasEditorActivity::class.java)
+                .putExtra(CanvasEditorActivity.EXTRA_PROJECT_ID, projectId)
+        )
+    }
+
     private fun loadProject(id: Long) {
         repo.async({ it.projectBundle(id) }) { bundle ->
             if (isFinishing || isDestroyed || bundle == null) return@async
             applyProject(bundle.project)
+            canvasJson = bundle.project.canvasJson
             destinations.clear()
             destinations += bundle.destinations
             destinations.forEach { dest ->
@@ -146,6 +197,7 @@ class ProjectEditorActivity : AppCompatActivity() {
                 bundle.project.fps, bundle.project.videoBitrateKbps
             )
             refreshEmptyStates()
+            renderCanvasSummary()
         }
     }
 
@@ -781,7 +833,7 @@ class ProjectEditorActivity : AppCompatActivity() {
     // Save
     // ------------------------------------------------------------------
 
-    private fun save() {
+    private fun save(finishAfter: Boolean = true, onDone: () -> Unit = {}) {
         val name = binding.inputName.text?.toString()?.trim().orEmpty()
         if (name.isEmpty()) {
             binding.nameLayout.error = getString(R.string.project_name_required)
@@ -819,6 +871,7 @@ class ProjectEditorActivity : AppCompatActivity() {
             noiseSuppressor = binding.switchNoise.isChecked,
             overlays = overlays.toList(),
             scenes = scenes.toList(),
+            canvasJson = canvasJson,
             createdAt = System.currentTimeMillis()
         )
 
@@ -830,8 +883,10 @@ class ProjectEditorActivity : AppCompatActivity() {
             runOnUiThread {
                 if (isFinishing || isDestroyed) return@runOnUiThread
                 settings.currentProjectId = id
+                projectId = id
                 Snackbar.make(binding.root, R.string.project_saved, Snackbar.LENGTH_SHORT).show()
-                finish()
+                onDone()
+                if (finishAfter) finish()
             }
         }
     }

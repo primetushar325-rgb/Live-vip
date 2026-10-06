@@ -107,7 +107,9 @@ data class BroadcastPlan(
     /** All overlay definitions of the project. */
     val overlays: List<com.livevip.app.overlay.OverlayConfig> = emptyList(),
     /** Initial overlay set (ids into [overlays]; empty = all enabled). */
-    val initialSceneOverlayIds: List<Long> = emptyList()
+    val initialSceneOverlayIds: List<Long> = emptyList(),
+    /** Part 2 live canvas: controls the actual encoded frame composition. */
+    val canvas: com.livevip.app.overlay.CanvasConfig? = null
 ) {
     val activeDestinations: List<DestinationConfig>
         get() = destinations.filter { it.enabled && it.isValid() }
@@ -126,6 +128,21 @@ data class BroadcastPlan(
         if (broadcastMode == BroadcastMode.SMART_RELAY) {
             val relay = relay ?: return "Smart Relay requires a relay server (Settings → Relay)"
             if (!relay.isValid()) return "Relay server must use HTTPS and a valid token"
+        }
+        // Canvas validation: resolution must be even, in range, encoder-capable.
+        canvas?.let { c ->
+            if (c.width % 2 != 0 || c.height % 2 != 0) {
+                return "Canvas ${c.width}×${c.height} is invalid — dimensions must be even"
+            }
+            if (c.width != quality.width || c.height != quality.height) {
+                return "Canvas ${c.width}×${c.height} does not match the encoder " +
+                    "${quality.width}×${quality.height} — re-save the project"
+            }
+            val caps = com.livevip.app.streaming.CapabilityDetector.videoEncoderCaps()
+            if (caps != null && !caps.supports(c.width, c.height)) {
+                return "Canvas ${c.width}×${c.height} is not supported by this device " +
+                    "(encoder max ${caps.maxWidth}×${caps.maxHeight})"
+            }
         }
         // Audio-format homogeneity: the AAC encoder is configured once.
         val first = playlist.first()

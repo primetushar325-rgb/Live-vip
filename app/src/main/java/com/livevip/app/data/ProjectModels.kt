@@ -57,6 +57,8 @@ data class Project(
     val noiseSuppressor: Boolean = true,
     val overlays: List<OverlayConfig> = emptyList(),
     val scenes: List<SceneConfig> = emptyList(),
+    /** Part 2 canvas (aspect, resolution, background, video transform). */
+    val canvasJson: String = "",
     val lastStreamedAt: Long = 0,
     val lastDurationSec: Long = 0,
     val lastLoopCount: Int = 0,
@@ -64,6 +66,10 @@ data class Project(
     val createdAt: Long = System.currentTimeMillis()
 ) {
     val isVideoMode: Boolean get() = mode == "VIDEO"
+
+    /** Parsed live canvas; null = pre-canvas project (Part 1 behavior). */
+    val canvas: com.livevip.app.overlay.CanvasConfig?
+        get() = com.livevip.app.overlay.CanvasConfig.fromJson(canvasJson)
 }
 
 /** A completed or ongoing broadcast record (PROJECT HISTORY). */
@@ -82,6 +88,17 @@ data class StreamSession(
 )
 
 /** Full project aggregate used by the editor and broadcast start. */
+/** Reusable overlay/layer template ("Gaming Overlay", "News Overlay"…). */
+data class OverlayTemplate(
+    val id: Long = 0,
+    val name: String,
+    val layersJson: String,
+    val createdAt: Long = 0
+) {
+    val layers: List<OverlayConfig>
+        get() = OverlayConfig.listFromJson(layersJson)
+}
+
 data class ProjectBundle(
     val project: Project,
     val destinations: List<Destination>,

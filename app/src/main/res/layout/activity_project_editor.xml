@@ -347,6 +347,31 @@
             android:textColor="@color/text_primary"
             android:textSize="13sp" />
 
+        <!-- Output format / Live Canvas (Part 2) -->
+        <TextView
+            style="@style/SettingsSectionHeader"
+            android:text="@string/output_format" />
+
+        <TextView
+            android:id="@+id/canvasFormatSummary"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/format_note_16_9"
+            android:textColor="@color/secondary_cyan"
+            android:textSize="12sp" />
+
+        <Button
+            android:id="@+id/btnOpenCanvas"
+            android:layout_width="match_parent"
+            android:layout_height="54dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_gradient_button"
+            android:text="@string/open_canvas_editor"
+            android:textColor="@color/text_primary"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
+
         <!-- Overlays -->
         <TextView
             style="@style/SettingsSectionHeader"

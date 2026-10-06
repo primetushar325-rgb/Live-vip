@@ -18,7 +18,15 @@ enum class OverlayType(val label: String) {
     COUNTDOWN("Countdown"),
     CLOCK("Clock"),
     SCROLLING_TEXT("Scrolling Text"),
-    BORDER("Border / Frame");
+    BORDER("Border / Frame"),
+    /** Picture-in-picture video layer (silent — composited into the stream). */
+    VIDEO("Video (PiP)"),
+    /** Animated GIF layer (composited, frame-advanced in the compositor). */
+    GIF("GIF Animation"),
+    /** Built-in animated subscribe call-to-action. */
+    SUBSCRIBE("Subscribe Animation"),
+    /** Full-canvas background (solid color or image) behind the video. */
+    BACKGROUND("Background");
 
     companion object {
         fun from(name: String?): OverlayType =
@@ -47,7 +55,13 @@ data class OverlayConfig(
     var opacity: Float = 1f,
     var scrollSpeedPercentPerSec: Float = 12f,
     var countdownTargetEpochMs: Long = 0L,
-    var borderThickness: Float = 0.025f
+    var borderThickness: Float = 0.025f,
+    /** Rotation around the layer center (degrees, counter-clockwise). */
+    var rotation: Int = 0,
+    /** Editor-only: locked layers cannot be dragged accidentally. */
+    var locked: Boolean = false,
+    /** Compositor animation (time-based, rendered into the stream). */
+    var animation: OverlayAnimation = OverlayAnimation.NONE
 ) {
 
     fun toJson(): JSONObject = JSONObject().apply {
@@ -67,6 +81,9 @@ data class OverlayConfig(
         put("scrollSpeed", scrollSpeedPercentPerSec.toDouble())
         put("countdownTarget", countdownTargetEpochMs)
         put("borderThickness", borderThickness.toDouble())
+        put("rotation", rotation)
+        put("locked", locked)
+        put("animation", animation.name)
     }
 
     companion object {
@@ -86,7 +103,10 @@ data class OverlayConfig(
             opacity = o.optDouble("opacity", 1.0).toFloat(),
             scrollSpeedPercentPerSec = o.optDouble("scrollSpeed", 12.0).toFloat(),
             countdownTargetEpochMs = o.optLong("countdownTarget"),
-            borderThickness = o.optDouble("borderThickness", 0.025).toFloat()
+            borderThickness = o.optDouble("borderThickness", 0.025).toFloat(),
+            rotation = o.optInt("rotation", 0),
+            locked = o.optBoolean("locked", false),
+            animation = OverlayAnimation.from(o.optString("animation"))
         )
 
         fun listToJson(list: List<OverlayConfig>): String {

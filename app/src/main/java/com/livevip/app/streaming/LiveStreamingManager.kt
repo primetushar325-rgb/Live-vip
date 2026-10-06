@@ -174,6 +174,14 @@ object LiveStreamingManager {
     private val overlayTicker = OverlayFilterFactory.TextTicker()
     private val activeOverlays = linkedMapOf<Long, OverlayFilterFactory.BuiltOverlay>()
 
+    // ---------------- Live canvas (Part 2) ----------------
+    // The canvas render is NOT an overlay: it sits FIRST in the filter chain
+    // and is never touched by scene switches or overlay rebuilds.
+    private var canvasRender: com.livevip.app.overlay.CanvasVideoTransformRender? = null
+    @Volatile private var activeCanvas: com.livevip.app.overlay.CanvasConfig? = null
+    /** Dims used to lay out layers when previewing a canvas without a plan. */
+    @Volatile private var previewDims: Pair<Int, Int>? = null
+
     // Network watchdog
     private var networkOnline = true
     private val networkMonitor by lazy {
@@ -464,6 +472,7 @@ object LiveStreamingManager {
         } catch (t: Throwable) {
             if (debugLogging) Log.e(TAG, "stopPreview failed", t)
         }
+        previewDims = null
     }
 
     // ------------------------------------------------------------------
@@ -614,6 +623,7 @@ object LiveStreamingManager {
         debugLogging = SettingsRepository.get(context).debugLogging
         activeConfig = config
         activePlan = null
+        previewDims = null
         reconnectAttempt = 0
         reconnectTotal = 0
         loopCount = 0
@@ -842,6 +852,9 @@ object LiveStreamingManager {
                 } catch (_: Throwable) {
                 }
             }
+
+            // Canvas transform (Part 2) — first filter, before every layer.
+            plan.canvas?.let { canvas -> applyCanvasInternal(canvas, activeVideoInfo) }
 
             // Overlays from the plan's initial scene.
             applyOverlays(plan.overlaysForInitialScene())
@@ -1254,22 +1267,37 @@ object LiveStreamingManager {
      */
     fun applyOverlays(configs: List<OverlayConfig>) {
         val context = appContext ?: return
-        val plan = activePlan ?: return
-        val width = plan.quality.width
-        val height = plan.quality.height
+        val plan = activePlan
+        val dims = plan?.let { it.quality.width to it.quality.height } ?: previewDims
+        if (dims == null) return
+        val width = dims.first
+        val height = dims.second
         val gl = try {
             stream?.getGlInterface()
         } catch (_: Throwable) {
             null
         } ?: return
 
-        // Remove overlays that are no longer active.
+        // Z-ORDER: the requested order IS the draw order. If the order of
+        // existing layers changed (editor drag), rebuild the chain in order —
+        // a live rebuild is filter add/remove only (no stream impact).
+        val activeOrder = activeOverlays.keys.toList()
+        val requestedOrder = configs.map { it.id }
+        val orderChanged = activeOrder.any { it in requestedOrder.toSet() } &&
+            activeOrder.filter { it in requestedOrder.toSet() } !=
+            requestedOrder.filter { it in activeOrder.toSet() }
+
+        // Remove overlays that are no longer active (or all, on reorder).
         val activeIds = configs.map { it.id }.toSet()
         val iterator = activeOverlays.entries.iterator()
         while (iterator.hasNext()) {
             val entry = iterator.next()
-            if (entry.key !in activeIds) {
+            if (entry.key !in activeIds || orderChanged) {
                 entry.value.renders.forEach { render ->
+                    try {
+                        OverlayFilterFactory.releaseLayer(render)
+                    } catch (_: Throwable) {
+                    }
                     try {
                         gl.removeFilter(render)
                     } catch (_: Throwable) {
@@ -1280,7 +1308,27 @@ object LiveStreamingManager {
         }
         // Add new / update existing.
         configs.forEach { config ->
-            if (activeOverlays.containsKey(config.id)) return@forEach
+            val existingBuilt = activeOverlays[config.id]
+            if (existingBuilt != null) {
+                if (OverlayFilterFactory.needsRebuild(existingBuilt.sourceConfig, config)) {
+                    // Structural change (type/media/text): rebuild this layer only.
+                    existingBuilt.renders.forEach { render ->
+                        try {
+                            OverlayFilterFactory.releaseLayer(render)
+                        } catch (_: Throwable) {
+                        }
+                        try {
+                            gl.removeFilter(render)
+                        } catch (_: Throwable) {
+                        }
+                    }
+                    activeOverlays.remove(config.id)
+                } else {
+                    // Position/scale/rotation/opacity — live in-place update.
+                    OverlayFilterFactory.updateInPlace(existingBuilt, config, width, height)
+                    return@forEach
+                }
+            }
             val built = try {
                 OverlayFilterFactory.build(
                     context, config, width, height, overlayTicker
@@ -1297,6 +1345,7 @@ object LiveStreamingManager {
             built.renders.forEach { render ->
                 try {
                     gl.addFilter(render)
+                    OverlayFilterFactory.startLayer(render)
                 } catch (_: Throwable) {
                 }
             }
@@ -1323,8 +1372,109 @@ object LiveStreamingManager {
             } catch (_: Throwable) {
             }
         }
+        activeOverlays.values.forEach { built ->
+            built.renders.forEach { render ->
+                try {
+                    OverlayFilterFactory.releaseLayer(render)
+                } catch (_: Throwable) {
+                }
+            }
+        }
         activeOverlays.clear()
         overlayTicker.stop()
+        canvasRender = null
+        activeCanvas = null
+        previewDims = null
+    }
+
+    // ------------------------------------------------------------------
+    // Live canvas control (Part 2)
+    // ------------------------------------------------------------------
+
+    /**
+     * Apply the canvas as the FIRST filter in the chain. Live-safe: adding or
+     * updating it never touches the encoder, RTMP or timestamps.
+     */
+    private fun applyCanvasInternal(
+        canvas: com.livevip.app.overlay.CanvasConfig,
+        sourceInfo: com.livevip.app.media.MediaAnalyzer.VideoInfo?
+    ) {
+        val gl = try {
+            stream?.getGlInterface()
+        } catch (_: Throwable) {
+            null
+        } ?: return
+        val srcW = sourceInfo?.width ?: canvas.width
+        val srcH = sourceInfo?.height ?: canvas.height
+        activeCanvas = canvas
+        var render = canvasRender
+        if (render == null) {
+            render = com.livevip.app.overlay.CanvasVideoTransformRender()
+            canvasRender = render
+            try {
+                gl.addFilter(0, render)
+            } catch (_: Throwable) {
+            }
+        }
+        render.update(
+            canvas.transform, srcW, srcH, canvas.width, canvas.height, canvas.backgroundColor
+        )
+    }
+
+    /** Live update of the main-video transform (editor gestures while LIVE). */
+    fun updateVideoTransform(transform: com.livevip.app.overlay.VideoTransform) {
+        val canvas = activeCanvas ?: return
+        val info = activeVideoInfo
+        canvasRender?.update(
+            transform,
+            info?.width ?: canvas.width, info?.height ?: canvas.height,
+            canvas.width, canvas.height, canvas.backgroundColor
+        )
+        activeCanvas = canvas.copy(transform = transform)
+    }
+
+    fun activeCanvasConfig(): com.livevip.app.overlay.CanvasConfig? = activeCanvas
+
+    /**
+     * Canvas preview for the editor: prepares encoders at the CANVAS
+     * resolution and applies the canvas + layers, so the editor preview is
+     * pixel-equivalent to the broadcast. UI-only previews never fake this.
+     */
+    fun previewCanvas(
+        context: Context,
+        view: android.view.SurfaceView,
+        videoUri: Uri?,
+        canvas: com.livevip.app.overlay.CanvasConfig,
+        overlays: List<OverlayConfig>
+    ): String? {
+        return try {
+            val s = engine(context)
+            if (s.isStreaming) return null // live preview already shows the canvas
+            try {
+                if (s.isOnPreview) s.stopPreview()
+            } catch (_: Throwable) {
+            }
+            // The encoder MUST run at the canvas resolution — always re-prepare
+            // so a previous non-canvas preview can never leak old dims.
+            prepared = false
+            val error = configureSources(context, videoUri, previewOnly = true)
+            if (error != null) return error
+            val config = StreamConfig.from(SettingsRepository.get(context)).copy(
+                videoWidth = canvas.width,
+                videoHeight = canvas.height
+            )
+            val error2 = prepareEncoders(context, config)
+            if (error2 != null) return error2
+            previewDims = canvas.width to canvas.height
+            val info = if (videoUri != null) MediaAnalyzer.analyze(context, videoUri) else null
+            applyCanvasInternal(canvas, info)
+            applyOverlays(overlays)
+            s.startPreview(view)
+            null
+        } catch (t: Throwable) {
+            if (debugLogging) Log.e(TAG, "previewCanvas failed", t)
+            "Canvas preview failed: ${t.message ?: "unknown error"}"
+        }
     }
 
     private fun BroadcastPlan.overlaysForInitialScene(): List<OverlayConfig> =

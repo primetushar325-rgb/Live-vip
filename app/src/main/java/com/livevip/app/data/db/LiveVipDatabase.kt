@@ -30,7 +30,7 @@ class LiveVipDatabase(context: Context) :
 
     companion object {
         private const val DB_NAME = "live_vip_projects.db"
-        private const val DB_VERSION = 1
+        private const val DB_VERSION = 2
     }
 
     override fun onCreate(db: SQLiteDatabase) {
@@ -58,6 +58,7 @@ class LiveVipDatabase(context: Context) :
               noise_suppressor INTEGER NOT NULL DEFAULT 1,
               overlays_json TEXT NOT NULL DEFAULT '[]',
               scenes_json TEXT NOT NULL DEFAULT '[]',
+              canvas_json TEXT NOT NULL DEFAULT '',
               last_streamed_at INTEGER NOT NULL DEFAULT 0,
               last_duration_sec INTEGER NOT NULL DEFAULT 0,
               last_loop_count INTEGER NOT NULL DEFAULT 0,
@@ -113,10 +114,28 @@ class LiveVipDatabase(context: Context) :
         db.execSQL("CREATE INDEX idx_dest_project ON destinations(project_id)")
         db.execSQL("CREATE INDEX idx_playlist_project ON playlist_items(project_id)")
         db.execSQL("CREATE INDEX idx_sessions_project ON stream_sessions(project_id)")
+        createV2Tables(db)
     }
 
     override fun onUpgrade(db: SQLiteDatabase, oldVersion: Int, newVersion: Int) {
-        // Schema v1 — future migrations go here (never drop user data).
+        // Schema v1 → v2 (Part 2): canvas + overlay templates. Never drop data.
+        if (oldVersion < 2) {
+            db.execSQL("ALTER TABLE projects ADD COLUMN canvas_json TEXT NOT NULL DEFAULT ''")
+            createV2Tables(db)
+        }
+    }
+
+    private fun createV2Tables(db: SQLiteDatabase) {
+        db.execSQL(
+            """
+            CREATE TABLE IF NOT EXISTS overlay_templates (
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT NOT NULL,
+              layers_json TEXT NOT NULL DEFAULT '[]',
+              created_at INTEGER NOT NULL DEFAULT 0
+            )
+            """.trimIndent()
+        )
     }
 
     // ------------------------------------------------------------------
@@ -286,6 +305,40 @@ class LiveVipDatabase(context: Context) :
     }
 
     // ------------------------------------------------------------------
+    // Overlay templates (Part 2 — reusable layer sets across projects)
+    // ------------------------------------------------------------------
+
+    fun insertTemplate(name: String, layersJson: String): Long =
+        writableDatabase.insert(
+            "overlay_templates", null, ContentValues().apply {
+                put("name", name)
+                put("layers_json", layersJson)
+                put("created_at", System.currentTimeMillis())
+            }
+        )
+
+    fun templates(): List<OverlayTemplate> {
+        val list = mutableListOf<OverlayTemplate>()
+        readableDatabase.query(
+            "overlay_templates", null, null, null, null, null, "created_at DESC"
+        ).use { cursor ->
+            while (cursor.moveToNext()) {
+                list += OverlayTemplate(
+                    id = cursor.getLong(cursor.getColumnIndexOrThrow("id")),
+                    name = cursor.getString(cursor.getColumnIndexOrThrow("name")),
+                    layersJson = cursor.getString(cursor.getColumnIndexOrThrow("layers_json")),
+                    createdAt = cursor.getLong(cursor.getColumnIndexOrThrow("created_at"))
+                )
+            }
+        }
+        return list
+    }
+
+    fun deleteTemplate(id: Long) {
+        writableDatabase.delete("overlay_templates", "id = ?", arrayOf(id.toString()))
+    }
+
+    // ------------------------------------------------------------------
     // Row mapping
     // ------------------------------------------------------------------
 
@@ -311,6 +364,7 @@ class LiveVipDatabase(context: Context) :
         put("noise_suppressor", if (p.noiseSuppressor) 1 else 0)
         put("overlays_json", OverlayConfig.listToJson(p.overlays))
         put("scenes_json", SceneConfig.listToJson(p.scenes))
+        put("canvas_json", p.canvasJson)
         put("created_at", p.createdAt)
     }
 
@@ -338,6 +392,9 @@ class LiveVipDatabase(context: Context) :
         noiseSuppressor = c.getInt(c.getColumnIndexOrThrow("noise_suppressor")) == 1,
         overlays = OverlayConfig.listFromJson(c.getString(c.getColumnIndexOrThrow("overlays_json"))),
         scenes = SceneConfig.listFromJson(c.getString(c.getColumnIndexOrThrow("scenes_json"))),
+        canvasJson = runCatching {
+            c.getString(c.getColumnIndexOrThrow("canvas_json"))
+        }.getOrDefault(""),
         lastStreamedAt = c.getLong(c.getColumnIndexOrThrow("last_streamed_at")),
         lastDurationSec = c.getLong(c.getColumnIndexOrThrow("last_duration_sec")),
         lastLoopCount = c.getInt(c.getColumnIndexOrThrow("last_loop_count")),
