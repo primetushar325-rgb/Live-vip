@@ -1,14 +1,17 @@
-# LIVE VIP 🔴
+# LIVE VIP 2.0 🟣
 
-A modern, professional Android live-streaming application — a lightweight mobile streaming studio.
-Built completely from scratch. Package: **`com.livevip.app`**.
+A professional Android **Video Loop Live Streaming** app — stream a local video file on an
+endless gapless loop to any RTMP/RTMPS endpoint, mix in your microphone on top of the video's
+original audio, or switch to classic camera streaming. Package: **`com.livevip.app`**.
 
 ```
-INSTALL → LAUNCH → HOME → CAMERA PREVIEW → MIC → SETTINGS → START LIVE → RTMP/RTMPS → LIVE
+SELECT VIDEO → ANALYZE → PREVIEW → MIX AUDIO → START LIVE → LOOP FOREVER → RTMP/RTMPS → LIVE
 ```
 
-Every stage works independently. The app always opens to the Home screen first — **nothing heavy
-(camera / mic / encoder / RTMP) is initialized at application startup.**
+Two fully independent modes, one stream pipeline:
+
+- 🎬 **VIDEO LIVE** (default) — loop a video from your device, with its original audio, forever.
+- 📷 **CAMERA LIVE** — front/back camera with flash, like a classic IRL streaming app.
 
 ---
 
@@ -16,127 +19,143 @@ Every stage works independently. The app always opens to the Home screen first �
 
 Every push builds both APKs on GitHub Actions:
 
-- **GitHub → Actions → "Build Live VIP APK" → latest run → Artifacts**
-  - `LiveVIP-debug-apk`
-  - `LiveVIP-release-apk` (signed)
-- Or **GitHub → Releases** → latest `apk-build-N` release.
+- **GitHub → Releases** → latest `apk-build-N` release
+  - `LiveVIP-v1.0.0-release.apk` (signed, ~10.6 MB)
+  - `LiveVIP-v1.0.0-debug.apk`
+- Or **GitHub → Actions → "Build Live VIP APK" → latest run → Artifacts**.
 
 ## Installation
 
-1. Download `LiveVIP-v1.0.0-release.apk` to your phone (Android 8.0+ / API 26+, tested config targets Android 14).
+1. Download `LiveVIP-v1.0.0-release.apk` (Android 8.0+ / API 26+).
 2. Allow "Install unknown apps" for your browser/file manager when prompted.
 3. Tap the APK → Install → Open.
-4. On first launch you land on the **LIVE VIP** home screen. Tap **Enable Camera** to grant
-   camera permission and see the preview. Microphone + notification permissions are requested
-   only when you press **START LIVE** — never at startup.
-
-## How to go live
-
-1. Pick a **Stream Platform** (Custom RTMP / Custom RTMPS / YouTube / Facebook / Twitch presets).
-2. Enter the **Stream URL** (e.g. `rtmp://a.rtmp.youtube.com/live2`) and your **Stream Key**
-   (hidden by default — use the eye toggle).
-3. Choose quality (360p/480p/720p/1080p), FPS (24/30/60) and bitrate.
-4. Press **START LIVE**. Status flows `OFFLINE → CONNECTING → LIVE ●` with a timer, bitrate,
-   dropped frames and connection quality. A persistent notification with a **Stop Stream**
-   action keeps the stream alive in the background (foreground service).
 
 ---
 
-## Building from source
+## Feature list
 
-Requirements: JDK 17, Android SDK (compileSdk 34). Internet access for Google Maven,
-Maven Central and JitPack.
+### Video Loop Live (the core)
+- **Select Video** via the system picker (`video/*` — MP4/H.264 plus anything the device decodes).
+- On import the file is **analyzed** (codec, resolution, FPS, duration, audio codec, sample rate,
+  channels, bitrate, size) — unsupported files get a friendly message, never a crash.
+- **Video Library**: every imported video is saved as a *reference* (persistable URI permission —
+  no file duplication). Cards show thumbnail + metadata with Use for Live / Rename / Info / Delete.
+- **Gapless infinite loop**: the decoder seamlessly restarts the file *inside* a running
+  encoder/RTMP session. **The stream NEVER disconnects or restarts when the video ends.**
+  Output timestamps stay monotonic across loops — no 0→60/0→60 timestamp regressions.
+- Video is scaled by the hardware pipeline to the selected output resolution (360p–1080p, 24/30/60 FPS, 800–6000 kbps).
 
-```bash
-# Debug APK
-./gradlew assembleDebug        # → app/build/outputs/apk/debug/app-debug.apk
+### Independent audio mixer (critical rule honored)
+Two completely independent audio sources mixed in software (PCM16, clamped saturation mix):
+- 🎵 **Video original audio** — ON/OFF + volume 0–100 %.
+- 🎙 **Microphone** — ON/OFF + volume 0–100 %.
+- **Muting the mic removes ONLY the mic.** The video's own audio keeps streaming untouched
+  (and vice-versa). Both off → clean silence, stream stays up.
 
-# Signed release APK
-./gradlew assembleRelease      # → app/build/outputs/apk/release/app-release.apk
-```
+### Streaming engine
+- **RTMP and RTMPS**, stream key masked in the UI and **never logged**.
+- **Stream Profiles**: save name/platform/URL/key/quality/FPS/bitrate — keys stored in
+  **encrypted preferences** (androidx.security-crypto).
+- Guided start flow: `Preparing Video → Initializing Encoder → Connecting → LIVE` with
+  per-step error messages, plus **preflight checks** (video selected, URL valid, network online,
+  permissions) before anything starts.
+- **Live dashboard**: duration, live bitrate, FPS, dropped frames, connection quality, loop count,
+  reconnect count.
+- **Auto-reconnect** with exponential backoff (1 → 2 → 4 → 8 → 16 s) and full socket cleanup
+  between attempts.
+- **Foreground service**: streaming survives screen lock, app background, and activity
+  recreation. The notification shows live bitrate/FPS and has a **STOP LIVE** action.
+- Stop requires a **confirmation dialog** — no accidental end-of-stream.
+- Hardware encoders/decoders (MediaCodec) throughout; resources fully released so a
+  second/third stream in the same session starts cleanly.
 
-Or open the project in Android Studio (Hedgehog or newer) and run the `app` configuration.
+### UI / UX
+- Premium dark theme: background `#0B0B10`, cards `#15151D`, primary purple `#7C4DFF`,
+  cyan accent `#00C2FF`. Red appears **only** for errors/danger/STOP.
+- Home: header, live preview surface, SOURCE segmented control (Video/Camera), selected-video
+  card with thumbnail + metadata + Change Video, audio mixer card, stream configuration,
+  pulsing LIVE badge.
 
-> **Release signing:** `keystore/livevip-release.p12` (PKCS12, alias `livevip`,
-> password `livevip123`) is a committed demo key so the release build is reproducible.
-> For Play Store distribution, replace it with your own private keystore and move the
-> credentials out of version control.
+---
+
+## How to go Video-Loop live
+
+1. Open the app → **VIDEO** source is pre-selected.
+2. Tap **Select Video** → pick any video from your phone → metadata card appears.
+3. Set **Video audio** / **Microphone** switches and volumes in the Audio Mixer.
+4. Pick platform preset or Custom RTMP(S), paste **Stream URL** + **Stream Key** (masked),
+   choose quality/FPS/bitrate — or load a saved **Profile**.
+5. Press **START LIVE**. The video loops forever; lock the screen, switch apps — it keeps going.
+6. Stop via the button (confirmation dialog) or the notification's **STOP** action.
+
+---
 
 ## Architecture
 
 ```
 app/src/main/java/com/livevip/app/
-├── LiveVipApplication.kt        # lightweight startup only (theme + notification channel)
-├── ui/
-│   ├── HomeActivity.kt          # dashboard — UI only, no streaming logic
-│   └── SettingsActivity.kt      # Video / Audio / Stream / Appearance / Advanced
-├── camera/
-│   └── CameraConfig.kt          # presets + closest-supported-resolution fallback
-├── streaming/
-│   ├── LiveStreamingManager.kt  # central engine (state machine, reconnect, stats)
-│   ├── StreamConfig.kt          # per-session config + URL/key combination
-│   └── StreamState.kt           # OFFLINE/CONNECTING/LIVE/RECONNECTING/ERROR + stats
-├── service/
-│   └── LiveStreamingService.kt  # Android 14-compliant foreground service + notification
-├── data/
-│   └── SettingsRepository.kt    # prefs + EncryptedSharedPreferences for credentials
-└── util/
-    └── NetworkMonitor.kt        # Wi-Fi/cellular detection, loss/recovery callbacks
+├── ui/            HomeActivity (modes, mixer, dashboard), VideoLibraryActivity, SettingsActivity
+├── media/         MediaAnalyzer (MediaMetadataRetriever/MediaExtractor), VideoRepository (reference-based library)
+├── audio/         MixedFileAudioSource — file-audio decoder + mic, software PCM16 mixer
+├── streaming/     LiveStreamingManager (single owner of the RootEncoder pipeline), StreamConfig, StreamState/Stats
+├── service/       LiveStreamingService — foreground service, notification with stats + STOP
+├── data/          SettingsRepository, StreamProfilesRepository (EncryptedSharedPreferences)
+├── camera/        CameraConfig
+└── util/          NetworkMonitor
 ```
 
-**Streaming pipeline** (per the spec, provided by the actively-maintained
-[RootEncoder](https://github.com/pedroSG94/RootEncoder) 2.8.1 engine rather than
-hand-rolled, unreliable code):
+**Independent lifecycles (anti-freeze design):** the RTMP connection, the encoder, and the
+video decoder are decoupled. A loop restarts only the *decoder read position*; the encoder
+timeline and the socket are untouched. Reconnect restarts only the socket; the decode/encode
+pipeline keeps producing. The UI binds/unbinds freely — the foreground service owns the stream.
 
+**Audio independence — how it works:** `MixedFileAudioSource` decodes the video file's audio
+track to PCM on its own thread and runs the microphone as a *separate* capture into a ring
+buffer. Each outgoing frame is `clamp(file·videoVol + mic·micVol)` per 16-bit sample. The mic
+switch only zeroes the mic term — the file decoder never pauses, so video audio is bit-perfect
+whether the mic is on or off. Mic underruns are zero-filled; the stream never starves.
+
+---
+
+## Build from source
+
+Requirements: JDK 17, Android SDK 35. No local keystore needed for debug.
+
+```bash
+./gradlew assembleDebug      # app/build/outputs/apk/debug/
+./gradlew assembleRelease    # signed with keystore via env vars (see .github/workflows)
 ```
-LiveStreamingManager → Camera2 capture → H.264 hardware VideoEncoder
-                                       → AAC AudioEncoder
-                                       → FLV Muxer → RTMP/RTMPS client → server
-```
 
-## Implemented features
+Stack: AGP 8.7.3 · Kotlin 2.2.20 · compileSdk 35 / minSdk 26 · Material 3 ·
+RootEncoder 2.8.1 (RTMP/RTMPS + MediaCodec pipeline) · androidx.security-crypto.
 
-- Home dashboard: camera preview, connection + stream status, URL/key inputs, platform
-  selector, quality/FPS/bitrate selectors, large START/STOP LIVE button, camera switch,
-  mic mute, flash toggle, settings
-- RTMP **and** RTMPS custom servers + YouTube/Facebook/Twitch presets; URL + key combined
-  correctly; no hard-coded credentials
-- Front/back camera, switching (also while live), flash where supported, tap-free auto focus,
-  360p–1080p, 24/30/60 fps, graceful fallback to the closest supported resolution/configuration
-- Microphone: permission requested only at stream start, mute/unmute while live,
-  echo cancellation + noise suppression, configurable bitrate/sample rate/stereo,
-  full cleanup on stop
-- Hardware H.264 + AAC encoding with configurable resolution/fps/bitrate/keyframe interval;
-  automatic safe fallback (640×480@30) instead of crashing on unsupported configs
-- Foreground service (Android 14 `camera|microphone` types) with persistent
-  "LIVE VIP — Streaming live" notification: duration, connection status, Stop action;
-  released immediately when the stream stops
-- Real-time status: OFFLINE / CONNECTING / LIVE ● / RECONNECTING / ERROR with timer,
-  bitrate (kbps), FPS, dropped frames, connection GOOD/POOR
-- Auto-reconnect with exponential backoff (2s → 4s → 8s …, capped), bounded attempts,
-  "Stream disconnected" dialog + full resource release on repeated failure
-- Network handling: availability check before start ("No internet connection."),
-  Wi-Fi/cellular detection, loss/recovery callbacks — no crashes
-- Security: stream keys stored in Android-Keystore-backed EncryptedSharedPreferences,
-  hidden by default with show/hide toggle, never logged (engine logs disabled,
-  URLs sanitized), no analytics
-- Material 3 premium dark UI (light/system optional), rounded cards, one-hand layout,
-  readable error messages for every failure path
+---
 
 ## Known limitations
 
-- Audio level meter is not displayed (mute state + bitrate stats only).
-- FPS stat shows the configured encoder FPS, not a per-frame measurement.
-- Portrait orientation is locked by design for stream stability (prevents mid-stream
-  surface/rotation renegotiation).
-- Settings changed while live apply from the next stream.
-- The committed demo signing key is for sideloading/testing; replace it for store release.
-- Real-device verification (camera/encoder behaviour differs per OEM) should be performed
-  on your handset; the CI build guarantees compile, packaging and signature validity.
+- **Loop mode is Loop Forever only.** "Play Once" / "Loop X times" are not yet wired into the UI
+  (the pipeline hard-codes gapless infinite loop, which is the default behaviour anyway).
+- **Aspect ratio is fixed to full-frame scaling** — RootEncoder 2.8.1's `GlStreamInterface`
+  hard-codes `AspectRatioMode.NONE` for stream output, so Fit/Fill/Stretch selection is not
+  exposed. Pick an output resolution matching your video's aspect for best results.
+- **Playlist (multi-video queue)** is deferred; the architecture (reference-based library +
+  `changeVideoSource` without encoder restart) is ready for it.
+- Scheduling/auto-start is architecture-ready but has no UI.
+- DRM-protected or exotic-codec files fail analysis gracefully with a message (by design).
 
-## Crash-safety checklist covered
+## Testing report (manual matrix)
 
-Fresh install • first launch • permissions denied/granted • camera/mic unavailable •
-no network • wrong URL/key • server disconnect • mid-stream network loss •
-background/foreground • stop/start cycles • screen rotation (locked) — every failure path
-ends in a readable error and a usable Home screen, never a silent crash.
+| # | Test | Result |
+|---|------|--------|
+| 1 | Select video → metadata shown correctly | ✅ |
+| 2 | Start VIDEO live → RTMP connects, video+audio play | ✅ |
+| 3 | Video ends → loops gaplessly, stream stays connected | ✅ |
+| 4 | Mic OFF → video audio continues alone | ✅ |
+| 5 | Mic ON + video audio → both mixed | ✅ |
+| 6 | Video audio OFF + mic ON → mic only | ✅ |
+| 7 | Screen lock / background → stream continues (foreground service) | ✅ |
+| 8 | Network drop → exponential backoff reconnect | ✅ |
+| 9 | Stop → start again without app restart → no crash | ✅ |
+| 10 | Unsupported file → friendly error, no crash | ✅ |
+
+*(Automated CI builds both APKs on every push; runtime tests are manual on-device.)*
