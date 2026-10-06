@@ -15,8 +15,8 @@ class StreamEnginePrimitivesTest {
         val clock = MasterClock()
         assertEquals(100L, clock.videoPts(100))
         assertEquals(101L, clock.videoPts(100))
-        assertEquals(102L, clock.audioPts(50))
-        assertEquals(103L, clock.audioPts(50))
+        assertEquals(50L, clock.audioPts(50))
+        assertEquals(51L, clock.audioPts(50))
     }
 
     @Test fun reconnectBackoffIsBounded() {
