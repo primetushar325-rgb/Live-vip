@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
 
     steps:
       - name: Checkout
@@ -91,3 +91,15 @@ jobs:
           name: live-vip-release-apk
           path: app/build/outputs/apk/release/app-release-unsigned.apk
           if-no-files-found: error
+
+      - name: Publish direct GitHub release download
+        if: steps.build.outcome == 'success'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        shell: bash
+        run: |
+          tag="build-${GITHUB_SHA::7}"
+          gh release create "$tag" app/build/outputs/apk/release/app-release-unsigned.apk \
+            --repo "$GITHUB_REPOSITORY" \
+            --title "LIVE VIP unsigned APK $tag" \
+            --notes "Unsigned release APK built from $GITHUB_SHA. Install only for testing; no signing key is stored in the repository."
