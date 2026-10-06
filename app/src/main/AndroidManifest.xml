@@ -14,7 +14,7 @@
     <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
-    <uses-feature android:name="android.hardware.camera" android:required="true" />
+    <uses-feature android:name="android.hardware.camera" android:required="false" />
     <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
     <uses-feature android:name="android.hardware.camera.flash" android:required="false" />
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
@@ -41,51 +41,6 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
-
-        <activity
-            android:name=".ui.VideoLibraryActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.HomeActivity"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
-        <activity
-            android:name=".ui.SettingsActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.HomeActivity"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
-        <activity
-            android:name=".ui.ProjectsActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.HomeActivity"
-            android:screenOrientation="portrait"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
-        <activity
-            android:name=".ui.ProjectEditorActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.ProjectsActivity"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
-        <activity
-            android:name=".ui.NewLiveActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.HomeActivity"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
-
-        <activity
-            android:name=".ui.CanvasEditorActivity"
-            android:exported="false"
-            android:parentActivityName=".ui.ProjectEditorActivity"
-            android:screenOrientation="portrait"
-            android:windowSoftInputMode="adjustResize"
-            tools:ignore="DiscouragedApi,LockedOrientationActivity" />
 
         <service
             android:name=".service.LiveStreamingService"

@@ -3,24 +3,25 @@ package com.livevip.app.overlay
 import org.json.JSONObject
 
 /**
- * PROFESSIONAL LIVE CANVAS — the model that defines the ACTUAL encoded
- * output: aspect ratio, resolution, background, and how the main video is
- * transformed inside the canvas.
+ * OUTPUT COMPOSITION — the model that defines the ACTUAL encoded output:
+ * aspect (16:9 / 9:16), resolution, and how the video is transformed
+ * (fit/fill/zoom/pan) inside the frame.
  *
- * The canvas is not a preview decoration: [com.livevip.app.streaming.
- * LiveStreamingManager] prepares the H.264 encoder AT the canvas resolution
- * and a GL filter ([CanvasVideoTransformRender]) composites the video into
- * the canvas inside the encoded frames. What the user composes is exactly
- * what viewers receive.
+ * [com.livevip.app.streaming.LiveStreamingManager] prepares the H.264
+ * encoder AT this resolution and the GL filter ([CanvasVideoTransformRender])
+ * composites the video quad inside the encoded frames — preview and stream
+ * share ONE pipeline, so what the user sees is exactly what viewers receive.
  */
 
-/** Output aspect presets. */
+/**
+ * Output format — exactly two user-facing choices (LANDSCAPE 16:9 and
+ * VERTICAL 9:16). OTHER is an internal fallback for inferred dimensions,
+ * never selectable in the UI.
+ */
 enum class CanvasAspect(val label: String, val ratioW: Int, val ratioH: Int) {
     LANDSCAPE_16_9("16:9 Landscape", 16, 9),
-    PORTRAIT_9_16("9:16 Shorts", 9, 16),
-    SQUARE_1_1("1:1 Square", 1, 1),
-    PORTRAIT_4_5("4:5 Portrait", 4, 5),
-    CUSTOM("Custom", 0, 0);
+    PORTRAIT_9_16("9:16 Vertical", 9, 16),
+    OTHER("Other", 0, 0);
 
     fun ratio(): Float = if (ratioW == 0 || ratioH == 0) 16f / 9f
     else ratioW.toFloat() / ratioH.toFloat()
@@ -28,6 +29,13 @@ enum class CanvasAspect(val label: String, val ratioW: Int, val ratioH: Int) {
     companion object {
         fun from(name: String?): CanvasAspect =
             entries.firstOrNull { it.name == name } ?: LANDSCAPE_16_9
+
+        /** Infer the format from output dimensions (16:9 / 9:16 / other). */
+        fun from(w: Int, h: Int): CanvasAspect = when {
+            w * 16 == h * 9 && w < h -> PORTRAIT_9_16
+            w * 9 == h * 16 && w > h -> LANDSCAPE_16_9
+            else -> OTHER
+        }
     }
 }
 
@@ -43,22 +51,6 @@ enum class FitMode(val label: String) {
     FIT("Fit"), FILL("Fill"), STRETCH("Stretch"), CUSTOM("Custom")
 }
 
-/** Compositor animations for layers — time-based, rendered into the stream. */
-enum class OverlayAnimation(val label: String) {
-    NONE("None"),
-    FADE_IN("Fade in"),
-    PULSE("Pulse"),
-    BLINK("Blink"),
-    FLOAT("Float"),
-    BOUNCE("Bounce"),
-    SLIDE_IN_LEFT("Slide in ←"),
-    SLIDE_IN_RIGHT("Slide in →");
-
-    companion object {
-        fun from(name: String?): OverlayAnimation =
-            entries.firstOrNull { it.name == name } ?: NONE
-    }
-}
 
 /**
  * Main-video transform inside the canvas. All pure math — unit tested.
@@ -192,7 +184,7 @@ data class VideoTransform(
 }
 
 /**
- * The canvas definition persisted with every project.
+ * The output composition persisted with the Saved Live.
  * [width]×[height] IS the encoder resolution used for the live stream.
  */
 data class CanvasConfig(
@@ -218,9 +210,7 @@ data class CanvasConfig(
         val aspect = when {
             w * 16 == h * 9 && w < h -> CanvasAspect.PORTRAIT_9_16
             w * 9 == h * 16 && w > h -> CanvasAspect.LANDSCAPE_16_9
-            w == h -> CanvasAspect.SQUARE_1_1
-            w * 5 == h * 4 && w < h -> CanvasAspect.PORTRAIT_4_5
-            else -> CanvasAspect.CUSTOM
+            else -> CanvasAspect.OTHER
         }
         return copy(aspect = aspect, width = w - (w % 2), height = h - (h % 2))
     }
@@ -255,25 +245,6 @@ data class CanvasConfig(
 }
 
 /**
- * Default canvas matching the source: 16:9 at min(source, 1080p) — used when
- * a pre-canvas project goes live so behavior stays IDENTICAL to Part 1
- * (full-frame video, no bars).
- */
-fun defaultCanvasFor(sourceW: Int, sourceH: Int, fallbackW: Int, fallbackH: Int): CanvasConfig {
-    var w = fallbackW
-    var h = fallbackH
-    if (sourceW > 0 && sourceH > 0) {
-        // Keep the source's own frame (never stretch), capped at 1080p class.
-        val scale = minOf(1f, 1920f / maxOf(sourceW, sourceH))
-        w = (sourceW * scale).toInt()
-        h = (sourceH * scale).toInt()
-    }
-    val evenW = (if (w % 2 != 0) w + 1 else w).coerceIn(128, 4096)
-    val evenH = (if (h % 2 != 0) h + 1 else h).coerceIn(128, 4096)
-    return CanvasConfig(width = evenW, height = evenH).copyWithResolution(evenW, evenH)
-}
-
-/**
  * Pure preview-sizing math (unit tested): fit a canvas-aspect surface inside
  * a container, preserving the canvas aspect ratio — the editor preview must
  * show the TRUE broadcast proportions (9:16 canvas ⇒ centered portrait).
@@ -294,17 +265,3 @@ object CanvasPreviewMath {
     }
 }
 
-/**
- * The canvas resolution IS the encoder resolution (BroadcastPlan enforces
- * it). When the editor's quality selection changes, this re-resolves the
- * persisted canvas to match — so a saved project always starts live cleanly.
- */
-object CanvasQualitySync {
-
-    /** Returns canvasJson updated to the given encoder dims (or unchanged). */
-    fun ensureMatches(canvasJson: String, width: Int, height: Int): String {
-        val canvas = CanvasConfig.fromJson(canvasJson) ?: return canvasJson
-        if (canvas.width == width && canvas.height == height) return canvasJson
-        return canvas.copyWithResolution(width, height).toJson().toString()
-    }
-}

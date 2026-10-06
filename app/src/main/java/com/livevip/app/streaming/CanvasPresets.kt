@@ -17,35 +17,27 @@ object CanvasPresets {
         fun pixelCount(): Long = width.toLong() * height.toLong()
     }
 
-    /** Real resolutions per aspect (highest first). */
+    /**
+     * Resolutions per output format, highest first. Exactly two formats
+     * exist (LANDSCAPE 16:9 / VERTICAL 9:16); quality picks within the list.
+     */
     fun optionsFor(aspect: CanvasAspect): List<CanvasPreset> = when (aspect) {
-        CanvasAspect.LANDSCAPE_16_9 -> listOf(
-            CanvasPreset("1920×1080 • Full HD", 1920, 1080),
-            CanvasPreset("1280×720 • HD", 1280, 720),
-            CanvasPreset("854×480 • SD", 854, 480)
-        )
         CanvasAspect.PORTRAIT_9_16 -> listOf(
-            CanvasPreset("1080×1920 • Shorts HD", 1080, 1920),
-            CanvasPreset("720×1280 • Shorts", 720, 1280),
-            CanvasPreset("480×854 • Shorts SD", 480, 854)
+            CanvasPreset("1080×1920 • 1080p", 1080, 1920),
+            CanvasPreset("720×1280 • 720p", 720, 1280),
+            CanvasPreset("480×854 • 480p", 480, 854)
         )
-        CanvasAspect.SQUARE_1_1 -> listOf(
-            CanvasPreset("1080×1080 • Square HD", 1080, 1080),
-            CanvasPreset("720×720 • Square", 720, 720),
-            CanvasPreset("480×480 • Square SD", 480, 480)
+        else -> listOf(
+            CanvasPreset("1920×1080 • 1080p", 1920, 1080),
+            CanvasPreset("1280×720 • 720p", 1280, 720),
+            CanvasPreset("854×480 • 480p", 854, 480)
         )
-        CanvasAspect.PORTRAIT_4_5 -> listOf(
-            CanvasPreset("1080×1350 • 4:5 HD", 1080, 1350),
-            CanvasPreset("864×1080 • 4:5", 864, 1080),
-            CanvasPreset("432×540 • 4:5 SD", 432, 540)
-        )
-        CanvasAspect.CUSTOM -> listOf(
-            CanvasPreset("1920×1080", 1920, 1080),
-            CanvasPreset("1280×720", 1280, 720),
-            CanvasPreset("1080×1920", 1080, 1920),
-            CanvasPreset("720×1280", 720, 1280),
-            CanvasPreset("1080×1080", 1080, 1080)
-        )
+    }
+
+    /** Preset for a format + quality label ("1080p" / "720p" / "480p"). */
+    fun presetFor(aspect: CanvasAspect, quality: String): CanvasPreset {
+        val options = optionsFor(aspect)
+        return options.firstOrNull { it.label.contains(quality) } ?: options[1]
     }
 
     /** All presets across aspects (for "suggest a working alternative"). */
@@ -135,18 +127,6 @@ object CanvasPresets {
         }
         return ValidationResult(true, null, null)
     }
-
-    /**
-     * Platform support hints (static, honest — full live platform capability
-     * queries need official APIs, Part 2+/OAuth scope):
-     * YouTube/Facebook/Twitch accept all presets here for RTMP ingest.
-     */
-    fun platformSupported(platform: StreamPlatform, width: Int, height: Int): Boolean =
-        when (platform) {
-            // All major platforms accept 16:9 and 9:16 RTMP at these sizes.
-            StreamPlatform.YOUTUBE, StreamPlatform.FACEBOOK, StreamPlatform.TWITCH,
-            StreamPlatform.CUSTOM_RTMP, StreamPlatform.CUSTOM_RTMPS -> true
-        }
 
     private fun nearestEven(width: Int, height: Int): CanvasPreset {
         // Round down to even (keeps the requested aspect class), clamped to

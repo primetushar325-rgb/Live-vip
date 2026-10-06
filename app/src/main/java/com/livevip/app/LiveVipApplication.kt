@@ -5,7 +5,6 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
-import com.livevip.app.data.LegacyMigrator
 import com.livevip.app.data.SettingsRepository
 
 /**
@@ -20,23 +19,8 @@ class LiveVipApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // One-time v1 → project-system migration (guarded by a prefs flag;
-        // no-op for fresh installs and already-migrated devices).
-        try {
-            LegacyMigrator.migrateIfNeeded(this)
-        } catch (t: Throwable) {
-            // Migration is best-effort copy-only: legacy data stays intact.
-        }
-
-        // Lightweight: apply stored theme preference (no I/O beyond prefs).
-        when (SettingsRepository.get(this).themeMode) {
-            SettingsRepository.THEME_LIGHT ->
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_NO)
-            SettingsRepository.THEME_DARK ->
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
-            else ->
-                AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
-        }
+        // Dark premium theme — always (graphite/black, Part 5 spec).
+        AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_YES)
 
         // Lightweight: register the notification channel used by the
         // foreground streaming service (cheap, no service is started).

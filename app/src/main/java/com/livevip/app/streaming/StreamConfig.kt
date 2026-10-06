@@ -1,6 +1,7 @@
 package com.livevip.app.streaming
 
 import com.livevip.app.data.SettingsRepository
+import com.livevip.app.overlay.CanvasAspect
 
 /** Immutable snapshot of everything needed to start one live session. */
 data class StreamConfig(
@@ -36,30 +37,41 @@ data class StreamConfig(
     }
 
     companion object {
-        fun from(settings: SettingsRepository): StreamConfig = StreamConfig(
-            url = settings.streamUrl,
-            key = settings.streamKey,
-            videoWidth = settings.videoWidth,
-            videoHeight = settings.videoHeight,
-            fps = settings.videoFps,
-            videoBitrateKbps = settings.videoBitrateKbps,
-            keyframeIntervalSec = settings.keyframeIntervalSec,
-            audioBitrateKbps = settings.audioBitrateKbps,
-            sampleRate = settings.audioSampleRate,
-            stereo = settings.audioStereo,
-            echoCanceler = settings.echoCanceler,
-            noiseSuppressor = settings.noiseSuppressor,
-            autoReconnect = settings.autoReconnect,
-            maxReconnectAttempts = settings.maxReconnectAttempts
-        )
-    }
-}
 
-/** Platform presets. Base URLs only — the user supplies the key. */
-enum class StreamPlatform(val label: String, val baseUrl: String) {
-    CUSTOM_RTMP("Custom RTMP", ""),
-    CUSTOM_RTMPS("Custom RTMPS", ""),
-    YOUTUBE("YouTube", "rtmp://a.rtmp.youtube.com/live2"),
-    FACEBOOK("Facebook", "rtmps://live-api-s.facebook.com:443/rtmp"),
-    TWITCH("Twitch", "rtmp://live.twitch.tv/app")
+        /**
+         * Build the session config from Saved Live settings.
+         *
+         * Resolution comes from output format (16:9 / 9:16) + quality preset
+         * ("auto" picks 1080p, falling back to 720p only via explicit
+         * [CanvasPresets.validate] at start time — never silently). Bitrate
+         * follows the resolution (YouTube-recommended, CBR-safe).
+         */
+        fun from(settings: SettingsRepository): StreamConfig {
+            val aspect = CanvasAspect.from(settings.outputAspect)
+            val quality = settings.videoQuality
+            val preset = if (quality == "auto") {
+                CanvasPresets.optionsFor(aspect)[0]
+            } else {
+                CanvasPresets.presetFor(aspect, quality)
+            }
+            return StreamConfig(
+                url = settings.streamUrl,
+                key = settings.streamKey,
+                videoWidth = preset.width,
+                videoHeight = preset.height,
+                fps = settings.videoFps,
+                videoBitrateKbps = QualityProfiles.recommendedBitrateKbps(
+                    minOf(preset.width, preset.height), settings.videoFps
+                ),
+                keyframeIntervalSec = QualityProfiles.KEYFRAME_INTERVAL_SEC,
+                audioBitrateKbps = settings.audioBitrateKbps,
+                sampleRate = settings.audioSampleRate,
+                stereo = settings.audioStereo,
+                echoCanceler = settings.echoCanceler,
+                noiseSuppressor = settings.noiseSuppressor,
+                autoReconnect = settings.autoReconnect,
+                maxReconnectAttempts = settings.maxReconnectAttempts
+            )
+        }
+    }
 }

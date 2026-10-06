@@ -6,7 +6,7 @@ import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 
 /**
- * Single source of truth for all persisted settings.
+ * Single source of truth for all persisted settings — the "Saved Live".
  *
  * - Regular preferences: plain SharedPreferences.
  * - Stream URL / Stream key: Android Keystore backed
@@ -53,15 +53,41 @@ class SettingsRepository private constructor(context: Context) {
         get() = securePrefs.getString(KEY_STREAM_KEY, "") ?: ""
         set(value) = securePrefs.edit().putString(KEY_STREAM_KEY, value.trim()).apply()
 
-    // ---------------- Video ----------------
+    /** UI-only preference: mask or reveal the stream key field. */
+    var showStreamKey: Boolean
+        get() = prefs.getBoolean(KEY_SHOW_STREAM_KEY, false)
+        set(value) = prefs.edit().putBoolean(KEY_SHOW_STREAM_KEY, value).apply()
 
-    var videoWidth: Int
-        get() = prefs.getInt(KEY_VIDEO_WIDTH, 1280)
-        set(value) = prefs.edit().putInt(KEY_VIDEO_WIDTH, value).apply()
+    // ---------------- Saved Live: selected video ----------------
 
-    var videoHeight: Int
-        get() = prefs.getInt(KEY_VIDEO_HEIGHT, 720)
-        set(value) = prefs.edit().putInt(KEY_VIDEO_HEIGHT, value).apply()
+    /** Content URI of the selected video ("" = none). Never duplicated. */
+    var selectedVideoUri: String
+        get() = prefs.getString(KEY_SELECTED_VIDEO_URI, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SELECTED_VIDEO_URI, value).apply()
+
+    /** Selected video metadata (JSON) for the info line — name/duration/res/fps. */
+    var selectedVideoJson: String
+        get() = prefs.getString(KEY_SELECTED_VIDEO_JSON, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_SELECTED_VIDEO_JSON, value).apply()
+
+    // ---------------- Output format ----------------
+
+    /** Output format: CanvasAspect name (LANDSCAPE_16_9 / PORTRAIT_9_16). */
+    var outputAspect: String
+        get() = prefs.getString(KEY_OUTPUT_ASPECT, "LANDSCAPE_16_9") ?: "LANDSCAPE_16_9"
+        set(value) = prefs.edit().putString(KEY_OUTPUT_ASPECT, value).apply()
+
+    /** Quality preset: "auto" / "480p" / "720p" / "1080p". */
+    var videoQuality: String
+        get() = prefs.getString(KEY_VIDEO_QUALITY, "auto") ?: "auto"
+        set(value) = prefs.edit().putString(KEY_VIDEO_QUALITY, value).apply()
+
+    /** Saved video transform (JSON) — zoom/pan survive app restarts. */
+    var transformJson: String
+        get() = prefs.getString(KEY_TRANSFORM, "") ?: ""
+        set(value) = prefs.edit().putString(KEY_TRANSFORM, value).apply()
+
+    // ---------------- Encoder ----------------
 
     var videoFps: Int
         get() = prefs.getInt(KEY_VIDEO_FPS, 30)
@@ -97,6 +123,16 @@ class SettingsRepository private constructor(context: Context) {
         get() = prefs.getBoolean(KEY_NOISE_SUPPRESSOR, true)
         set(value) = prefs.edit().putBoolean(KEY_NOISE_SUPPRESSOR, value).apply()
 
+    /** Video audio ON/OFF — persists across sessions. */
+    var videoAudioEnabled: Boolean
+        get() = prefs.getBoolean(KEY_VIDEO_AUDIO, true)
+        set(value) = prefs.edit().putBoolean(KEY_VIDEO_AUDIO, value).apply()
+
+    /** Microphone ON/OFF — persists across sessions. */
+    var microphoneEnabled: Boolean
+        get() = prefs.getBoolean(KEY_MICROPHONE, false)
+        set(value) = prefs.edit().putBoolean(KEY_MICROPHONE, value).apply()
+
     // ---------------- Stream behaviour ----------------
 
     var autoReconnect: Boolean
@@ -104,38 +140,15 @@ class SettingsRepository private constructor(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_AUTO_RECONNECT, value).apply()
 
     var maxReconnectAttempts: Int
-        get() = prefs.getInt(KEY_MAX_RECONNECT, 3)
+        get() = prefs.getInt(KEY_MAX_RECONNECT, 5)
         set(value) = prefs.edit().putInt(KEY_MAX_RECONNECT, value).apply()
-
-    var platformIndex: Int
-        get() = prefs.getInt(KEY_PLATFORM, 0)
-        set(value) = prefs.edit().putInt(KEY_PLATFORM, value).apply()
-
-    /** Id of the video selected for VIDEO LIVE (0 = none). */
-    var selectedVideoId: Long
-        get() = prefs.getLong(KEY_SELECTED_VIDEO, 0L)
-        set(value) = prefs.edit().putLong(KEY_SELECTED_VIDEO, value).apply()
-
-    /** Current project id for the project-based home (0 = none selected). */
-    var currentProjectId: Long
-        get() = prefs.getLong(KEY_CURRENT_PROJECT, 0L)
-        set(value) = prefs.edit().putLong(KEY_CURRENT_PROJECT, value).apply()
 
     /** Show the floating LIVE bubble when the app goes to background. */
     var floatingBubbleEnabled: Boolean
         get() = prefs.getBoolean(KEY_FLOATING_BUBBLE, true)
         set(value) = prefs.edit().putBoolean(KEY_FLOATING_BUBBLE, value).apply()
 
-    /** Last used mode: 0 = VIDEO (default), 1 = CAMERA. */
-    var lastMode: Int
-        get() = prefs.getInt(KEY_LAST_MODE, 0)
-        set(value) = prefs.edit().putInt(KEY_LAST_MODE, value).apply()
-
-    // ---------------- Appearance / Advanced ----------------
-
-    var themeMode: Int
-        get() = prefs.getInt(KEY_THEME, THEME_DARK)
-        set(value) = prefs.edit().putInt(KEY_THEME, value).apply()
+    // ---------------- Advanced ----------------
 
     var debugLogging: Boolean
         get() = prefs.getBoolean(KEY_DEBUG_LOGGING, false)
@@ -146,14 +159,14 @@ class SettingsRepository private constructor(context: Context) {
         set(value) = prefs.edit().putBoolean(KEY_SHOW_STATS, value).apply()
 
     companion object {
-        const val THEME_SYSTEM = 0
-        const val THEME_DARK = 1
-        const val THEME_LIGHT = 2
-
         private const val KEY_STREAM_URL = "stream_url"
         private const val KEY_STREAM_KEY = "stream_key"
-        private const val KEY_VIDEO_WIDTH = "video_width"
-        private const val KEY_VIDEO_HEIGHT = "video_height"
+        private const val KEY_SHOW_STREAM_KEY = "show_stream_key"
+        private const val KEY_SELECTED_VIDEO_URI = "selected_video_uri"
+        private const val KEY_SELECTED_VIDEO_JSON = "selected_video_json"
+        private const val KEY_OUTPUT_ASPECT = "output_aspect"
+        private const val KEY_VIDEO_QUALITY = "video_quality"
+        private const val KEY_TRANSFORM = "transform_json"
         private const val KEY_VIDEO_FPS = "video_fps"
         private const val KEY_VIDEO_BITRATE = "video_bitrate"
         private const val KEY_KEYFRAME_INTERVAL = "keyframe_interval"
@@ -162,14 +175,11 @@ class SettingsRepository private constructor(context: Context) {
         private const val KEY_AUDIO_STEREO = "audio_stereo"
         private const val KEY_ECHO_CANCELER = "echo_canceler"
         private const val KEY_NOISE_SUPPRESSOR = "noise_suppressor"
+        private const val KEY_VIDEO_AUDIO = "video_audio_enabled"
+        private const val KEY_MICROPHONE = "microphone_enabled"
         private const val KEY_AUTO_RECONNECT = "auto_reconnect"
         private const val KEY_MAX_RECONNECT = "max_reconnect"
-        private const val KEY_PLATFORM = "platform_index"
-        private const val KEY_SELECTED_VIDEO = "selected_video_id"
-        private const val KEY_CURRENT_PROJECT = "current_project_id"
         private const val KEY_FLOATING_BUBBLE = "floating_bubble_enabled"
-        private const val KEY_LAST_MODE = "last_mode"
-        private const val KEY_THEME = "theme_mode"
         private const val KEY_DEBUG_LOGGING = "debug_logging"
         private const val KEY_SHOW_STATS = "show_stats"
 

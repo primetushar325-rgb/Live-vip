@@ -3,65 +3,30 @@ package com.livevip.app.media
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
-import org.json.JSONArray
 import org.json.JSONObject
 
 /**
- * A video in the user's library — reference based, never duplicated.
- * The content URI is persisted (with persistable permission when the picker
- * grants it); the original file is NEVER copied.
+ * The SELECTED VIDEO for live — a single reference, never a library, never a
+ * copy. The persistable content URI is stored (when the picker grants it) so
+ * the Saved Live reopens after app restarts.
  */
-data class VideoItem(
-    val id: Long,
+data class SelectedVideo(
     val uri: String,
-    var name: String,
+    val name: String,
     val durationMs: Long,
     val width: Int,
     val height: Int,
     val fps: Int,
     val hasAudio: Boolean,
-    val sampleRate: Int,
-    val channels: Int,
-    val sizeBytes: Long,
-    val rotation: Int = 0,
-    val videoCodec: String = "",
-    val audioCodec: String = ""
+    val rotation: Int = 0
 ) {
     fun uriParsed(): Uri = Uri.parse(uri)
 
-    /** Display height accounting for rotation metadata. */
-    val displayHeight: Int
-        get() = if (rotation == 90 || rotation == 270) width else height
+    /** Display dimensions accounting for rotation metadata. */
+    val displayWidth: Int get() = if (rotation == 90 || rotation == 270) height else width
+    val displayHeight: Int get() = if (rotation == 90 || rotation == 270) width else height
 
-    val displayWidth: Int
-        get() = if (rotation == 90 || rotation == 270) height else width
-
-    fun resolutionLabel(): String = "${displayWidth}×${displayHeight}"
-
-    fun codecLabel(): String {
-        val v = codecShort(videoCodec, "H.264")
-        return if (!hasAudio) "$v • no audio"
-        else "$v + ${codecShort(audioCodec, "AAC")}"
-    }
-
-    private fun codecShort(mime: String, fallback: String): String = when {
-        mime.contains("avc") || mime.contains("h264", true) -> "H.264"
-        mime.contains("hevc") || mime.contains("h265", true) -> "H.265"
-        mime.contains("vp8") -> "VP8"
-        mime.contains("vp9") -> "VP9"
-        mime.contains("av01") -> "AV1"
-        mime.contains("mp4a") || mime.contains("aac") -> "AAC"
-        mime.contains("opus") -> "Opus"
-        mime.contains("vorbis") -> "Vorbis"
-        mime.isNotEmpty() -> mime.substringAfter('/').uppercase()
-        else -> fallback
-    }
-
-    fun metaLabel(): String {
-        val dur = durationLabel()
-        val audio = if (hasAudio) "Audio ✓" else "No audio"
-        return "${resolutionLabel()} • $fps FPS • $dur • $audio"
-    }
+    fun resolutionLabel(): String = "${displayWidth}×$displayHeight"
 
     fun durationLabel(): String {
         val totalSec = durationMs / 1000
@@ -72,53 +37,54 @@ data class VideoItem(
         else String.format("%02d:%02d", mm, ss)
     }
 
-    fun sizeLabel(): String {
-        val mb = sizeBytes / (1024.0 * 1024.0)
-        return if (mb >= 1024) String.format("%.1f GB", mb / 1024)
-        else String.format("%.1f MB", mb)
-    }
-}
+    fun infoLabel(): String =
+        "${resolutionLabel()} • $fps FPS • ${durationLabel()}" +
+            (if (!hasAudio) " • no audio" else "")
 
-/**
- * Library of imported videos. Only persistable content-URI references are
- * stored (no file copies — storage is never wasted with duplicates).
- */
-class VideoRepository private constructor(private val context: Context) {
+    fun toJson(): JSONObject = JSONObject()
+        .put("uri", uri)
+        .put("name", name)
+        .put("durationMs", durationMs)
+        .put("width", width)
+        .put("height", height)
+        .put("fps", fps)
+        .put("hasAudio", hasAudio)
+        .put("rotation", rotation)
 
-    private val prefs =
-        context.getSharedPreferences("live_vip_videos", Context.MODE_PRIVATE)
-
-    fun all(): List<VideoItem> {
-        val raw = prefs.getString(KEY_VIDEOS, "[]") ?: "[]"
-        return try {
-            val array = JSONArray(raw)
-            (0 until array.length()).mapNotNull { i ->
-                val o = array.optJSONObject(i) ?: return@mapNotNull null
-                VideoItem(
-                    id = o.optLong("id"),
+    companion object {
+        fun fromJson(raw: String?): SelectedVideo? {
+            if (raw.isNullOrBlank()) return null
+            return try {
+                val o = JSONObject(raw)
+                if (o.optString("uri").isBlank()) null
+                else SelectedVideo(
                     uri = o.optString("uri"),
                     name = o.optString("name"),
                     durationMs = o.optLong("durationMs"),
                     width = o.optInt("width"),
                     height = o.optInt("height"),
                     fps = o.optInt("fps", 30),
-                    hasAudio = o.optBoolean("hasAudio"),
-                    sampleRate = o.optInt("sampleRate", 44100),
-                    channels = o.optInt("channels", 2),
-                    sizeBytes = o.optLong("sizeBytes"),
-                    rotation = o.optInt("rotation"),
-                    videoCodec = o.optString("videoCodec"),
-                    audioCodec = o.optString("audioCodec")
+                    hasAudio = o.optBoolean("hasAudio", true),
+                    rotation = o.optInt("rotation")
                 )
+            } catch (_: Throwable) {
+                null
             }
-        } catch (_: Exception) {
-            emptyList()
         }
     }
+}
 
-    fun byId(id: Long): VideoItem? = all().firstOrNull { it.id == id }
+/**
+ * Persists the selected video (Saved Live). Reference-based: the original
+ * file is NEVER copied — only its content URI + metadata.
+ */
+object SelectedVideoStore {
 
-    fun add(uri: Uri, info: MediaAnalyzer.VideoInfo): VideoItem {
+    /**
+     * Take persistable read permission (when granted) so the URI survives
+     * restarts, then persist the selection.
+     */
+    fun select(context: Context, uri: Uri, info: MediaAnalyzer.VideoInfo): SelectedVideo {
         try {
             context.contentResolver.takePersistableUriPermission(
                 uri, Intent.FLAG_GRANT_READ_URI_PERMISSION
@@ -127,8 +93,7 @@ class VideoRepository private constructor(private val context: Context) {
             // Some pickers don't grant persistable permission — still usable
             // during this session.
         }
-        val item = VideoItem(
-            id = System.currentTimeMillis(),
+        val video = SelectedVideo(
             uri = uri.toString(),
             name = info.displayName,
             durationMs = info.durationMs,
@@ -136,60 +101,30 @@ class VideoRepository private constructor(private val context: Context) {
             height = info.height,
             fps = info.fps,
             hasAudio = info.hasAudio,
-            sampleRate = info.sampleRate,
-            channels = info.channels,
-            sizeBytes = info.sizeBytes,
-            rotation = info.rotation,
-            videoCodec = info.videoMime,
-            audioCodec = info.audioMime
+            rotation = info.rotation
         )
-        val existing = all().filter { it.uri != item.uri }
-        save(existing + item)
-        return item
+        val prefs = context.getSharedPreferences("live_vip_selected_video", Context.MODE_PRIVATE)
+        prefs.edit()
+            .putString("uri", video.uri)
+            .putString("meta", video.toJson().toString())
+            .apply()
+        return video
     }
 
-    fun rename(id: Long, newName: String) {
-        save(all().map { if (it.id == id) it.copy(name = newName) else it })
-    }
-
-    fun remove(id: Long) {
-        save(all().filter { it.id != id })
-    }
-
-    private fun save(items: List<VideoItem>) {
-        val array = JSONArray()
-        items.forEach { v ->
-            array.put(
-                JSONObject()
-                    .put("id", v.id)
-                    .put("uri", v.uri)
-                    .put("name", v.name)
-                    .put("durationMs", v.durationMs)
-                    .put("width", v.width)
-                    .put("height", v.height)
-                    .put("fps", v.fps)
-                    .put("hasAudio", v.hasAudio)
-                    .put("sampleRate", v.sampleRate)
-                    .put("channels", v.channels)
-                    .put("sizeBytes", v.sizeBytes)
-                    .put("rotation", v.rotation)
-                    .put("videoCodec", v.videoCodec)
-                    .put("audioCodec", v.audioCodec)
-            )
+    /** The persisted selection, or null when nothing valid is saved. */
+    fun current(context: Context): SelectedVideo? {
+        val prefs = context.getSharedPreferences("live_vip_selected_video", Context.MODE_PRIVATE)
+        val video = SelectedVideo.fromJson(prefs.getString("meta", null)) ?: return null
+        // Sanity: the persisted URI must still be readable.
+        return try {
+            context.contentResolver.openFileDescriptor(video.uriParsed(), "r")?.use { video }
+        } catch (_: Throwable) {
+            null
         }
-        prefs.edit().putString(KEY_VIDEOS, array.toString()).apply()
     }
 
-    companion object {
-        private const val KEY_VIDEOS = "videos"
-
-        @Volatile
-        private var instance: VideoRepository? = null
-
-        fun get(context: Context): VideoRepository =
-            instance ?: synchronized(this) {
-                instance ?: VideoRepository(context.applicationContext)
-                    .also { instance = it }
-            }
+    fun clear(context: Context) {
+        val prefs = context.getSharedPreferences("live_vip_selected_video", Context.MODE_PRIVATE)
+        prefs.edit().remove("uri").remove("meta").apply()
     }
 }

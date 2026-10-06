@@ -7,7 +7,7 @@ import org.junit.Test
 
 /**
  * Quality ladder honesty: no fake 4K, no upscaling, ~2s keyframes, CBR
- * presets. Loop mode labels stable (persisted by name).
+ * presets.
  */
 class QualityProfilesTest {
 
@@ -73,19 +73,5 @@ class QualityProfilesTest {
         val options = QualityProfiles.bitrateOptionsFor(720)
         assertEquals(options, options.sorted())
         assertTrue(QualityProfiles.recommendedBitrateKbps(720, 30) in options)
-    }
-
-    @Test
-    fun `loop modes persist by name`() {
-        assertEquals(LoopMode.LOOP_ONE, LoopMode.from("LOOP_ONE"))
-        assertEquals(LoopMode.SHUFFLE, LoopMode.from("Shuffle"))
-        assertEquals(LoopMode.LOOP_ALL, LoopMode.from("garbage")) // safe default
-        assertEquals(LoopMode.LOOP_ALL, LoopMode.from(null))
-    }
-
-    @Test
-    fun `broadcast mode labels are user readable`() {
-        assertEquals("Direct RTMP", BroadcastMode.DIRECT.label)
-        assertEquals("Smart Relay", BroadcastMode.SMART_RELAY.label)
     }
 }

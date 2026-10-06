@@ -46,7 +46,7 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                LiveStreamingManager.stopBroadcast()
+                LiveStreamingManager.stopStream()
                 stopForegroundCompat()
                 stopSelf()
                 return START_NOT_STICKY
@@ -160,12 +160,9 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
                     formatDuration(lastStats.durationSec),
                     connection
                 )
-                val dest = if (lastStats.destinationsTotal > 1) {
-                    " • ${lastStats.destinationsLive}/${lastStats.destinationsTotal} dest"
-                } else ""
                 if (lastStats.bitrateKbps > 0) {
-                    "$base$dest • ${lastStats.bitrateKbps} kbps • ${lastStats.fps} FPS"
-                } else "$base$dest"
+                    "$base • ${lastStats.bitrateKbps} kbps • ${lastStats.fps} FPS"
+                } else base
             }
 
             StreamState.CONNECTING -> getString(R.string.state_connecting)

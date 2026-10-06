@@ -20,7 +20,6 @@ enum class StreamState {
 
 /**
  * Live statistics surfaced to the UI while streaming.
- * [destinationsLive]/[destinationsTotal] cover multi-destination and relay.
  */
 data class StreamStats(
     val bitrateKbps: Long = 0,
@@ -30,8 +29,6 @@ data class StreamStats(
     val fps: Int = 0,
     val loopCount: Int = 0,
     val reconnects: Int = 0,
-    val destinationsLive: Int = 1,
-    val destinationsTotal: Int = 1,
     /** True only after sustained verified media flow (ingest verification). */
     val mediaVerified: Boolean = false,
     /** Measured A/V timeline drift (video coverage - audio coverage, ms). */

@@ -53,27 +53,4 @@ class StreamConfigUrlTest {
         assertFalse(config("file:///video.mp4").isValidUrl())
         assertFalse(config("").isValidUrl())
     }
-
-    @Test
-    fun `destination config validates and builds the ingest url`() {
-        val dest = DestinationConfig(
-            id = 1, name = "YT", platform = StreamPlatform.YOUTUBE,
-            url = "rtmp://a.rtmp.youtube.com/live2", streamKey = "secret"
-        )
-        assertTrue(dest.isValid())
-        assertEquals("rtmp://a.rtmp.youtube.com/live2/secret", dest.fullUrl())
-
-        assertFalse(
-            DestinationConfig(
-                id = 2, name = "bad", platform = StreamPlatform.CUSTOM_RTMP,
-                url = "https://not-rtmp", streamKey = "k"
-            ).isValid()
-        )
-    }
-
-    @Test
-    fun `platform presets carry their base urls`() {
-        assertEquals("rtmp://a.rtmp.youtube.com/live2", StreamPlatform.YOUTUBE.baseUrl)
-        assertTrue(StreamPlatform.FACEBOOK.baseUrl.startsWith("rtmps://"))
-    }
 }

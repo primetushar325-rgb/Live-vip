@@ -10,10 +10,7 @@ package com.livevip.app.streaming
  * + protocol overhead   (~10% RTMP/FLV + TCP)
  * + safety margin       (25% — live streaming must survive bursts)
  *
- * DIRECT mode with N destinations needs ≈ N × that on the PHONE.
- * SMART RELAY keeps the phone at ONE upstream regardless of N — the relay
- * server's own uplink handles the fan-out (its capacity is a deployment
- * concern, surfaced in the relay dashboard, not hidden in the app).
+ * ONE stream, ONE destination — the phone uploads exactly once.
  */
 object NetworkMath {
 
@@ -27,36 +24,17 @@ object NetworkMath {
         EXCELLENT, GOOD, TIGHT, INSUFFICIENT, UNKNOWN
     }
 
-    /** Per-upstream requirement in kbps (video + audio + overhead + margin). */
-    fun requiredPerStreamKbps(videoKbps: Int, audioKbps: Int): Int {
+    /** What the phone must upload, in kbps (video + audio + overhead + margin). */
+    fun requiredUploadKbps(videoKbps: Int, audioKbps: Int): Int {
         val base = videoKbps + audioKbps
         return ((base * (1 + PROTOCOL_OVERHEAD)) * (1 + SAFETY_MARGIN)).toInt()
     }
 
-    /** What the PHONE must upload. */
-    fun requiredPhoneUploadKbps(
-        videoKbps: Int,
-        audioKbps: Int,
-        destinationCount: Int,
-        mode: BroadcastMode
-    ): Int {
-        val perStream = requiredPerStreamKbps(videoKbps, audioKbps)
-        return when (mode) {
-            BroadcastMode.DIRECT -> perStream * destinationCount.coerceAtLeast(1)
-            BroadcastMode.SMART_RELAY -> perStream // ONE upstream — relay fans out
-        }
-    }
-
     data class Assessment(
-        val mode: BroadcastMode,
-        val destinationCount: Int,
-        val requiredPerStreamKbps: Int,
-        val requiredPhoneUploadKbps: Int,
+        val requiredUploadKbps: Int,
         val availableUploadKbps: Long?,
         val marginKbps: Long?,
         val status: Status,
-        /** Honest recommendation for multi-destination setups. */
-        val recommendedMode: BroadcastMode,
         val summary: String
     )
 
@@ -68,35 +46,16 @@ object NetworkMath {
     fun assess(
         videoKbps: Int,
         audioKbps: Int,
-        destinationCount: Int,
-        mode: BroadcastMode,
         availableUploadKbps: Long?
     ): Assessment {
-        val perStream = requiredPerStreamKbps(videoKbps, audioKbps)
-        val count = destinationCount.coerceAtLeast(1)
-        val required = requiredPhoneUploadKbps(videoKbps, audioKbps, count, mode)
-
-        // Recommendation logic (Smart Network Mode):
-        // Multiple destinations should not multiply phone upload unless the
-        // network can comfortably afford it.
-        val recommended: BroadcastMode = when {
-            count <= 1 -> BroadcastMode.DIRECT
-            availableUploadKbps == null -> BroadcastMode.SMART_RELAY
-            else -> {
-                val directNeed = perStream * count
-                // Direct is fine only with clear headroom (≥ GOOD).
-                if (availableUploadKbps >= directNeed * 2) BroadcastMode.DIRECT
-                else BroadcastMode.SMART_RELAY
-            }
-        }
-
+        val required = requiredUploadKbps(videoKbps, audioKbps)
         val status: Status
         val margin: Long?
         val summary: String
         if (availableUploadKbps == null) {
             status = Status.UNKNOWN
             margin = null
-            summary = "Required ≈ ${required} kbps on this phone. " +
+            summary = "Required ≈ $required kbps upload. " +
                 "Upload estimate unavailable — real throughput will be monitored live."
         } else {
             margin = availableUploadKbps - required
@@ -108,26 +67,18 @@ object NetworkMath {
                 else -> Status.INSUFFICIENT
             }
             summary = when (status) {
-                Status.EXCELLENT -> "Excellent — ample headroom for $mode.label."
-                Status.GOOD -> "Good — comfortable margin for $mode.label."
-                Status.TIGHT -> "Tight — consider lower quality or Smart Relay."
-                Status.INSUFFICIENT ->
-                    if (mode == BroadcastMode.DIRECT && count > 1)
-                        "Not enough upload for DIRECT with $count destinations — use Smart Relay."
-                    else "Not enough upload — lower the bitrate/resolution."
+                Status.EXCELLENT -> "Excellent — ample upload headroom."
+                Status.GOOD -> "Good — comfortable upload margin."
+                Status.TIGHT -> "Tight — consider a lower quality preset."
+                Status.INSUFFICIENT -> "Not enough upload — lower the quality preset."
                 Status.UNKNOWN -> ""
             }
         }
-
         return Assessment(
-            mode = mode,
-            destinationCount = count,
-            requiredPerStreamKbps = perStream,
-            requiredPhoneUploadKbps = required,
+            requiredUploadKbps = required,
             availableUploadKbps = availableUploadKbps,
             marginKbps = margin,
             status = status,
-            recommendedMode = recommended,
             summary = summary
         )
     }
