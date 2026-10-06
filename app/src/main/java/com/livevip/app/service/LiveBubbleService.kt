@@ -201,7 +201,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
                         if (now - lastTapMs < 300) {
                             // Double tap → minimize/expand toggle.
                             minimized = !minimized
-                            text.visibility =
+                            labelView.visibility =
                                 if (minimized) View.GONE else View.VISIBLE
                             close.visibility =
                                 if (minimized) View.GONE else View.VISIBLE
