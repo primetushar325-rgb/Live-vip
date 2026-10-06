@@ -48,6 +48,18 @@
             tools:text="10h 23m • 3 destinations • 1080p • Last streamed today" />
     </LinearLayout>
 
+    <Button
+        android:id="@+id/btnProjectOpen"
+        style="@style/Widget.Material3.Button.TonalButton"
+        android:layout_width="wrap_content"
+        android:layout_height="38dp"
+        android:layout_marginEnd="4dp"
+        android:minWidth="0dp"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:text="@string/open"
+        android:textSize="12sp" />
+
     <ImageButton
         android:id="@+id/btnProjectMore"
         android:layout_width="40dp"

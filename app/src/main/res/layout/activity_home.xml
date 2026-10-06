@@ -601,61 +601,95 @@
                         tools:text="3 destinations • 1080p 30fps 6 Mbps" />
                 </LinearLayout>
             </LinearLayout>
+
+            <Button
+                android:id="@+id/btnEditLive"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="match_parent"
+                android:layout_height="46dp"
+                android:layout_marginTop="10dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/edit_live"
+                android:textSize="13sp"
+                app:icon="@drawable/ic_edit"
+                app:iconGravity="textStart" />
         </LinearLayout>
 
-        <!-- ================= Quick actions ================= -->
+        <!-- ================= Quick access (2x2 grid — labels always fit
+             on one line, even on 360dp screens; no vertical text) ================= -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            android:orientation="horizontal">
+            android:orientation="vertical">
 
-            <Button
-                android:id="@+id/btnLibrary"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/video_library"
-                android:textSize="11sp"
-                app:icon="@drawable/ic_folder_open"
-                app:iconGravity="textStart" />
+                android:orientation="horizontal">
 
-            <Button
-                android:id="@+id/btnMixer"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="@string/audio_mixer_short"
-                android:textSize="11sp"
-                app:icon="@drawable/ic_mic"
-                app:iconGravity="textStart" />
+                <Button
+                    android:id="@+id/btnLibrary"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/video_library"
+                    android:textSize="12sp"
+                    app:icon="@drawable/ic_folder_open"
+                    app:iconGravity="textStart" />
 
-            <Button
-                android:id="@+id/btnOverlays"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="@string/overlays"
-                android:textSize="11sp"
-                app:icon="@drawable/ic_layers"
-                app:iconGravity="textStart" />
+                <Button
+                    android:id="@+id/btnMixer"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/audio_mixer_short"
+                    android:textSize="12sp"
+                    app:icon="@drawable/ic_mic"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
 
-            <Button
-                android:id="@+id/btnProjects"
-                style="@style/Widget.Material3.Button.OutlinedButton"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_weight="1"
-                android:text="@string/projects"
-                android:textSize="11sp"
-                app:icon="@drawable/ic_playlist"
-                app:iconGravity="textStart" />
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnOverlays"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/overlays"
+                    android:textSize="12sp"
+                    app:icon="@drawable/ic_layers"
+                    app:iconGravity="textStart" />
+
+                <Button
+                    android:id="@+id/btnProjects"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="46dp"
+                    android:layout_marginStart="10dp"
+                    android:layout_weight="1"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:text="@string/projects"
+                    android:textSize="12sp"
+                    app:icon="@drawable/ic_playlist"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- ================= Recent projects ================= -->
@@ -711,7 +745,7 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:text="@string/create_project"
+            android:text="@string/new_live"
             app:icon="@drawable/ic_add" />
 
         <!-- ================= Start / stop ================= -->

@@ -70,7 +70,7 @@ class ProjectEditorActivity : AppCompatActivity() {
     private val destinationKeys = mutableMapOf<Long, String>()
     private val overlays = mutableListOf<OverlayConfig>()
     private val scenes = mutableListOf<SceneConfig>()
-    private var loopMode = LoopMode.LOOP_ALL
+    private var loopMode = LoopMode.LOOP_ONE
     /** Part 2 live canvas persisted with the project. */
     private var canvasJson = ""
 
@@ -103,6 +103,10 @@ class ProjectEditorActivity : AppCompatActivity() {
         setupQuality()
         setupAudio()
         setupOverlayButtons()
+        binding.audioAdvancedToggle.setOnClickListener {
+            val group = binding.audioAdvancedGroup
+            group.visibility = if (group.visibility == View.VISIBLE) View.GONE else View.VISIBLE
+        }
         binding.btnSaveProject.setOnClickListener { save() }
         binding.btnOpenCanvas.setOnClickListener {
             save(finishAfter = false) { openCanvasEditor() }
@@ -120,7 +124,7 @@ class ProjectEditorActivity : AppCompatActivity() {
         return Project(
             name = "",
             mode = "VIDEO",
-            loopMode = LoopMode.LOOP_ALL,
+            loopMode = LoopMode.LOOP_ONE,
             width = defaults.videoWidth,
             height = defaults.videoHeight,
             fps = defaults.fps,
@@ -837,20 +841,20 @@ class ProjectEditorActivity : AppCompatActivity() {
     // Save
     // ------------------------------------------------------------------
 
-    private fun save(finishAfter: Boolean = true, onDone: () -> Unit = {}) {
+    private fun save(finishAfter: Boolean = false, onDone: () -> Unit = {}) {
         val name = binding.inputName.text?.toString()?.trim().orEmpty()
         if (name.isEmpty()) {
             binding.nameLayout.error = getString(R.string.project_name_required)
             return
         }
         binding.nameLayout.error = null
+        // NOTE (UX fix): SAVE always saves. Missing video/destination is only
+        // warned about here — the real gate is Start Live (BroadcastPlan
+        // validation), so no "Add video to playlist" style popups block saving.
         if (isVideoMode && playlist.isEmpty()) {
-            Snackbar.make(binding.root, R.string.playlist_empty, Snackbar.LENGTH_LONG).show()
-            return
-        }
-        if (destinations.isEmpty()) {
-            Snackbar.make(binding.root, R.string.add_destination, Snackbar.LENGTH_LONG).show()
-            return
+            Snackbar.make(binding.root, R.string.saved_no_video_hint, Snackbar.LENGTH_LONG).show()
+        } else if (destinations.isEmpty()) {
+            Snackbar.make(binding.root, R.string.saved_no_destination_hint, Snackbar.LENGTH_LONG).show()
         }
 
         val project = Project(
@@ -875,7 +879,9 @@ class ProjectEditorActivity : AppCompatActivity() {
             noiseSuppressor = binding.switchNoise.isChecked,
             overlays = overlays.toList(),
             scenes = scenes.toList(),
-            canvasJson = canvasJson,
+            canvasJson = com.livevip.app.overlay.CanvasQualitySync.ensureMatches(
+                canvasJson, selectedWidth, selectedHeight
+            ),
             createdAt = System.currentTimeMillis()
         )
 

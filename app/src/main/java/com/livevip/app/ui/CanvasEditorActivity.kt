@@ -219,6 +219,12 @@ class CanvasEditorActivity : AppCompatActivity() {
                 surfaceReady = false
             }
         })
+        // Re-fit the preview whenever the container lays out (first layout,
+        // rotation, resize) — the preview surface always matches the CANVAS
+        // aspect, centered, so a 9:16 canvas shows a centered portrait frame.
+        binding.previewContainer.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            applyPreviewAspect()
+        }
         setupGestures()
     }
 
@@ -240,32 +246,30 @@ class CanvasEditorActivity : AppCompatActivity() {
 
     private fun firstPlaylistVideo(): com.livevip.app.media.VideoItem? = firstVideo
 
-    /** Size the preview surface to the canvas aspect (preview = broadcast frame). */
+    /**
+     * Size the preview surface + aids overlay to the CANVAS aspect ratio,
+     * centered inside the container (preview = broadcast frame proportions).
+     * Pure sizing math is in [CanvasPreviewMath] (unit tested).
+     */
     private fun applyPreviewAspect() {
         val container = binding.previewContainer
-        container.post {
-            val cw = container.width.coerceAtLeast(1)
-            val ch = container.height.coerceAtLeast(1)
-            val canvasAspect = canvas.width.toFloat() / canvas.height.toFloat()
-            var w = cw.toFloat()
-            var h = w / canvasAspect
-            if (h > ch) {
-                h = ch.toFloat()
-                w = h * canvasAspect
-            }
-            binding.canvasPreviewSurface.layoutParams = (
-                binding.canvasPreviewSurface.layoutParams as ViewGroup.MarginLayoutParams
-                ).apply {
-                width = w.toInt()
-                height = h.toInt()
-            }
-            binding.canvasAids.layoutParams = binding.canvasAids.layoutParams.apply {
-                width = w.toInt()
-                height = h.toInt()
-            }
-            binding.canvasPreviewSurface.requestLayout()
-            binding.canvasAids.requestLayout()
-        }
+        val cw = container.width
+        val ch = container.height
+        if (cw <= 0 || ch <= 0) return
+        val fit = CanvasPreviewMath.fit(
+            cw.toFloat(), ch.toFloat(),
+            canvas.width.toFloat(), canvas.height.toFloat()
+        )
+        val sv = binding.canvasPreviewSurface
+        (sv.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+            width = fit.first.toInt(); height = fit.second.toInt()
+            gravity = android.view.Gravity.CENTER
+        }.also { sv.layoutParams = it }
+        val aids = binding.canvasAids
+        (aids.layoutParams as android.widget.FrameLayout.LayoutParams).apply {
+            width = fit.first.toInt(); height = fit.second.toInt()
+            gravity = android.view.Gravity.CENTER
+        }.also { aids.layoutParams = it }
     }
 
     // ------------------------------------------------------------------

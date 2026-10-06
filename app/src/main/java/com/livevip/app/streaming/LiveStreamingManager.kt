@@ -473,6 +473,7 @@ object LiveStreamingManager {
             if (debugLogging) Log.e(TAG, "stopPreview failed", t)
         }
         previewDims = null
+        canvasPreviewKey = null
     }
 
     // ------------------------------------------------------------------
@@ -1440,6 +1441,9 @@ object LiveStreamingManager {
      * resolution and applies the canvas + layers, so the editor preview is
      * pixel-equivalent to the broadcast. UI-only previews never fake this.
      */
+    /** Identifies the composition the preview is currently prepared for. */
+    private var canvasPreviewKey: String? = null
+
     fun previewCanvas(
         context: Context,
         view: android.view.SurfaceView,
@@ -1450,6 +1454,19 @@ object LiveStreamingManager {
         return try {
             val s = engine(context)
             if (s.isStreaming) return null // live preview already shows the canvas
+
+            // Same video + same canvas resolution ⇒ the encoders are already
+            // prepared correctly. The preview surface may simply have been
+            // recreated (layout/resize) — rebind it WITHOUT re-preparing the
+            // encoder (no churn on every aspect-row tap or surface change).
+            val key = "${videoUri}|${canvas.width}x${canvas.height}"
+            if (key == canvasPreviewKey) {
+                try {
+                    s.startPreview(view)
+                    return null
+                } catch (_: Throwable) {
+                }
+            }
             try {
                 if (s.isOnPreview) s.stopPreview()
             } catch (_: Throwable) {
@@ -1470,6 +1487,7 @@ object LiveStreamingManager {
             applyCanvasInternal(canvas, info)
             applyOverlays(overlays)
             s.startPreview(view)
+            canvasPreviewKey = key
             null
         } catch (t: Throwable) {
             if (debugLogging) Log.e(TAG, "previewCanvas failed", t)

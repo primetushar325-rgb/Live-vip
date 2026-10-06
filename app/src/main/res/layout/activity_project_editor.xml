@@ -331,21 +331,43 @@
             android:textColor="@color/text_primary"
             android:textSize="13sp" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchEcho"
+        <!-- Advanced audio — collapsed by default (clean UI). -->
+        <TextView
+            android:id="@+id/audioAdvancedToggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/echo_cancellation"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp" />
+            android:layout_marginTop="6dp"
+            android:background="?attr/selectableItemBackground"
+            android:paddingTop="8dp"
+            android:paddingBottom="8dp"
+            android:text="@string/advanced_audio"
+            android:textColor="@color/secondary_cyan"
+            android:textSize="13sp"
+            android:textStyle="bold" />
 
-        <com.google.android.material.materialswitch.MaterialSwitch
-            android:id="@+id/switchNoise"
+        <LinearLayout
+            android:id="@+id/audioAdvancedGroup"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/noise_suppression"
-            android:textColor="@color/text_primary"
-            android:textSize="13sp" />
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchEcho"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/echo_cancellation"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+
+            <com.google.android.material.materialswitch.MaterialSwitch
+                android:id="@+id/switchNoise"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:text="@string/noise_suppression"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp" />
+        </LinearLayout>
 
         <!-- Output format / Live Canvas (Part 2) -->
         <TextView

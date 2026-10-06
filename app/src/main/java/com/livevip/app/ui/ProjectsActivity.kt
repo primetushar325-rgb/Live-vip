@@ -66,10 +66,7 @@ class ProjectsActivity : AppCompatActivity() {
     }
 
     private fun newProject() {
-        startActivity(
-            Intent(this, ProjectEditorActivity::class.java)
-                .putExtra(ProjectEditorActivity.EXTRA_PROJECT_ID, 0L)
-        )
+        startActivity(Intent(this, NewLiveActivity::class.java))
     }
 
     private fun openProject(project: Project) {
@@ -144,6 +141,7 @@ class ProjectsActivity : AppCompatActivity() {
             }
 
             b.root.setOnClickListener { openProject(project) }
+            b.btnProjectOpen.setOnClickListener { openProject(project) }
             b.btnProjectMore.setOnClickListener { anchor ->
                 val menu = PopupMenu(this@ProjectsActivity, anchor)
                 menu.menu.add(getString(R.string.edit_live)).setOnMenuItemClickListener {
@@ -169,8 +167,11 @@ class ProjectsActivity : AppCompatActivity() {
         val history = if (project.totalStreamCount > 0) {
             " • ${getString(R.string.streamed_count, project.totalStreamCount)}"
         } else ""
-        return "$duration • ${project.height}p ${project.fps}fps" +
-            " • ${project.broadcastMode.label}$history"
+        val canvas = project.canvas
+        val format = canvas?.let { "${it.aspect.label} • ${it.resolutionLabel()}" }
+            ?: "${project.width}×${project.height}"
+        return "$format • $duration • ${project.broadcastMode.label}$history\n" +
+            getString(R.string.project_status_ready)
     }
 
     private fun formatDuration(seconds: Long): String {

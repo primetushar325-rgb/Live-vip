@@ -272,3 +272,39 @@ fun defaultCanvasFor(sourceW: Int, sourceH: Int, fallbackW: Int, fallbackH: Int)
     val evenH = (if (h % 2 != 0) h + 1 else h).coerceIn(128, 4096)
     return CanvasConfig(width = evenW, height = evenH).copyWithResolution(evenW, evenH)
 }
+
+/**
+ * Pure preview-sizing math (unit tested): fit a canvas-aspect surface inside
+ * a container, preserving the canvas aspect ratio — the editor preview must
+ * show the TRUE broadcast proportions (9:16 canvas ⇒ centered portrait).
+ */
+object CanvasPreviewMath {
+
+    /** Returns (width, height) in px: the largest canvas-aspect rect fitting the container. */
+    fun fit(containerW: Float, containerH: Float, canvasW: Float, canvasH: Float): Pair<Float, Float> {
+        if (containerW <= 0f || containerH <= 0f) return 0f to 0f
+        val canvasAspect = (canvasW.coerceAtLeast(1f)) / (canvasH.coerceAtLeast(1f))
+        var w = containerW
+        var h = w / canvasAspect
+        if (h > containerH) {
+            h = containerH
+            w = h * canvasAspect
+        }
+        return w to h
+    }
+}
+
+/**
+ * The canvas resolution IS the encoder resolution (BroadcastPlan enforces
+ * it). When the editor's quality selection changes, this re-resolves the
+ * persisted canvas to match — so a saved project always starts live cleanly.
+ */
+object CanvasQualitySync {
+
+    /** Returns canvasJson updated to the given encoder dims (or unchanged). */
+    fun ensureMatches(canvasJson: String, width: Int, height: Int): String {
+        val canvas = CanvasConfig.fromJson(canvasJson) ?: return canvasJson
+        if (canvas.width == width && canvas.height == height) return canvasJson
+        return canvas.copyWithResolution(width, height).toJson().toString()
+    }
+}
