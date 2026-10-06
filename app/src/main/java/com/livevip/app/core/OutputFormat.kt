@@ -11,6 +11,8 @@ enum class OutputFormat(val label: String) {
     LANDSCAPE_16_9("LANDSCAPE 16:9"),
     VERTICAL_9_16("VERTICAL 9:16");
 
+    val isVertical: Boolean get() = this == VERTICAL_9_16
+
     companion object {
         fun from(name: String?): OutputFormat =
             entries.firstOrNull { it.name == name } ?: LANDSCAPE_16_9

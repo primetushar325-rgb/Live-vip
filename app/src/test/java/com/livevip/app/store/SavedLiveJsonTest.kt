@@ -60,10 +60,10 @@ class SavedLiveJsonTest {
         )
         val parsed = LibraryVideo.fromJson(JSONObject(video.toJson().toString()))
         assertEquals(video, parsed)
-        assertEquals("1:05", video.durationLabel())
+        assertEquals("01:05", video.durationLabel())
         assertEquals("1920×1080", video.resolutionLabel())
         assertTrue(video.infoLabel().contains("1920×1080"))
-        assertTrue(video.infoLabel().contains("1:05"))
+        assertTrue(video.infoLabel().contains("01:05"))
         // hasAudio=true adds no note; the label is resolution • fps • duration.
         assertTrue(!video.infoLabel().contains("no audio"))
         // A silent video is flagged honestly.
