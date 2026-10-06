@@ -421,4 +421,5 @@
     <string name="no_destinations_yet">No destinations yet — you can add them later in the project.</string>
     <string name="open">OPEN</string>
     <string name="state_publishing">STREAMING TO SERVER</string>
+    <string name="session_detected_format">Live session detected — %1$s • Loop #%2$d • %3$s</string>
 </resources>

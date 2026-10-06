@@ -809,6 +809,13 @@ object LiveStreamingManager {
             val first = plan.playlist.first()
             val info = MediaAnalyzer.analyze(context, first.uri)
                 ?: return "Video not playable on this device: ${first.displayName}"
+            // INGEST VALIDATION (Part 4 §9): the single-decoder pipeline
+            // ingests exactly one video stream — ambiguous multi-track files
+            // are rejected up front with a clear reason, never mid-stream.
+            if (info.videoTrackCount > 1) {
+                return "This file has ${info.videoTrackCount} video tracks — " +
+                    "re-encode it with a single video track (H.264 + AAC MP4)."
+            }
             activeVideoInfo = info
             activeVideoUri = first.uri
             playlistEngine = PlaylistEngine(plan.playlist, plan.loopMode).also { engine ->

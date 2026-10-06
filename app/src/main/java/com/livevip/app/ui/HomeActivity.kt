@@ -132,6 +132,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         setupButtons()
         loadCurrentProject()
         renderState(LiveStreamingManager.state, null)
+        maybeShowSessionDetected()
     }
 
     override fun onStart() {
@@ -182,6 +183,41 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     // ------------------------------------------------------------------
     // Preview
     // ------------------------------------------------------------------
+
+    /**
+     * APP REOPEN / CRASH RECOVERY (Part 4 §13): the stream lives in the
+     * foreground service, independent of this Activity. When the user
+     * (re)opens the app during an active session, say so explicitly —
+     * with real duration, loop count and connection state — and make sure
+     * nothing here starts or stops a second stream.
+     */
+    private fun maybeShowSessionDetected() {
+        if (!LiveStreamingManager.isBroadcasting) return
+        if (sessionDetectedShown) return
+        sessionDetectedShown = true
+        binding.root.post {
+            if (isFinishing || isDestroyed || !LiveStreamingManager.isBroadcasting) return@post
+            val s = LiveStreamingManager.stats
+            val stateLabel = when (LiveStreamingManager.state) {
+                StreamState.LIVE -> "LIVE"
+                StreamState.PUBLISHING -> "STREAMING TO SERVER"
+                StreamState.RECONNECTING -> "RECONNECTING"
+                else -> "CONNECTING"
+            }
+            Snackbar.make(
+                binding.root,
+                getString(
+                    R.string.session_detected_format,
+                    formatDuration(s.durationSec),
+                    s.loopCount,
+                    stateLabel
+                ),
+                Snackbar.LENGTH_LONG
+            ).show()
+        }
+    }
+
+    private var sessionDetectedShown = false
 
     private fun setupSurface() {
         binding.previewSurface.holder.addCallback(object : SurfaceHolder.Callback {
@@ -974,12 +1010,16 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.statDropped.text = stats.droppedFrames.toString()
         binding.statLoops.text = getString(R.string.loop_number_format, stats.loopCount)
         binding.statReconnects.text = stats.reconnects.toString()
-        // REAL A/V sync (Part 4): measured video-vs-audio timeline drift.
+        // REAL A/V sync (Part 4): measured video-vs-audio timeline drift,
+        // labeled by severity tier (Healthy / Minor drift / Warning /
+        // Critical) — never a fake status.
         val avMs = stats.avSyncMs
+        val avAbs = kotlin.math.abs(avMs)
         val (avText, avColor) = when {
-            kotlin.math.abs(avMs) < 80 -> "±${avMs}ms" to R.color.success_green
-            kotlin.math.abs(avMs) < 250 -> "±${avMs}ms" to R.color.warning_amber
-            else -> "±${avMs}ms" to R.color.error_soft_red
+            avAbs < 80 -> "±${avMs}ms" to R.color.success_green
+            avAbs < 250 -> "±${avMs}ms DRIFT" to R.color.warning_amber
+            avAbs < 500 -> "±${avMs}ms WARNING" to R.color.warning_amber
+            else -> "±${avMs}ms CRITICAL" to R.color.error_soft_red
         }
         binding.statTimeline.text = avText
         binding.statTimeline.setTextColor(ContextCompat.getColor(this, avColor))

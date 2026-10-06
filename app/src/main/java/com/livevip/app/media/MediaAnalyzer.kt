@@ -28,7 +28,9 @@ object MediaAnalyzer {
         val hasAudio: Boolean,
         val audioMime: String,
         val sampleRate: Int,
-        val channels: Int
+        val channels: Int,
+        /** Number of video tracks in the container (ingest: exactly one). */
+        val videoTrackCount: Int = 1
     ) {
         val isStereo: Boolean get() = channels >= 2
 
@@ -79,6 +81,7 @@ object MediaAnalyzer {
         var audioMime = ""
         var sampleRate = 44100
         var channels = 2
+        var videoTrackCount = 1
 
         try {
             val retriever = MediaMetadataRetriever()
@@ -98,15 +101,19 @@ object MediaAnalyzer {
             val extractor = MediaExtractor()
             extractor.setDataSource(context, uri, null)
             var foundVideo = false
+            var videoTrackCount = 0
             for (i in 0 until extractor.trackCount) {
                 val format = extractor.getTrackFormat(i)
                 val mime = format.getString(MediaFormat.KEY_MIME) ?: continue
-                if (mime.startsWith("video/") && !foundVideo) {
-                    foundVideo = true
-                    videoMime = mime
-                    width = format.getIntOrDefault(MediaFormat.KEY_WIDTH, 0)
-                    height = format.getIntOrDefault(MediaFormat.KEY_HEIGHT, 0)
-                    fps = format.getIntOrDefault(MediaFormat.KEY_FRAME_RATE, 30)
+                if (mime.startsWith("video/")) {
+                    videoTrackCount++
+                    if (!foundVideo) {
+                        foundVideo = true
+                        videoMime = mime
+                        width = format.getIntOrDefault(MediaFormat.KEY_WIDTH, 0)
+                        height = format.getIntOrDefault(MediaFormat.KEY_HEIGHT, 0)
+                        fps = format.getIntOrDefault(MediaFormat.KEY_FRAME_RATE, 30)
+                    }
                 } else if (mime.startsWith("audio/") && !hasAudio) {
                     hasAudio = true
                     audioMime = mime
@@ -116,6 +123,7 @@ object MediaAnalyzer {
             }
             extractor.release()
             if (!foundVideo) return null
+            videoTrackCount = videoTrackCount.coerceAtLeast(1)
         } catch (_: Exception) {
             return null
         }
@@ -132,7 +140,8 @@ object MediaAnalyzer {
             hasAudio = hasAudio,
             audioMime = audioMime,
             sampleRate = sampleRate,
-            channels = channels
+            channels = channels,
+            videoTrackCount = videoTrackCount
         )
     }
 
