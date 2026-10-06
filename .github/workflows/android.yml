@@ -51,6 +51,19 @@ jobs:
           gradle clean test assembleRelease --no-daemon 2>&1 | tee build.log
           exit ${PIPESTATUS[0]}
 
+      - name: Publish build log in job summary
+        if: always()
+        shell: bash
+        run: |
+          if [ -f build.log ]; then
+            {
+              echo '## Gradle build output'
+              echo '```text'
+              cat build.log
+              echo '```'
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
       - name: Upload build log
         if: always()
         uses: actions/upload-artifact@v4
