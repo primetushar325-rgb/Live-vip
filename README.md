@@ -16,7 +16,7 @@ A clean Android live-broadcasting rebuild. The source tree starts from an empty 
 Open the project in Android Studio with Android SDK 35 and JDK 17, or run:
 
 ```bash
-./gradlew clean test assembleRelease
+gradle clean test assembleRelease
 ```
 
 The release artifact is written to `app/build/outputs/apk/release/app-release-unsigned.apk` unless signing is configured. This repository does not contain a signing key.
