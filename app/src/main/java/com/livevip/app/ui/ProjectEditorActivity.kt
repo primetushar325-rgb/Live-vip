@@ -455,7 +455,7 @@ class ProjectEditorActivity : AppCompatActivity() {
                 menu.show()
             }
             holder.b.btnRemoveItem.setOnClickListener {
-                val idx = holder.bindingAdapterPosition
+                val idx = holder.adapterPosition
                 if (idx != androidx.recyclerview.widget.RecyclerView.NO_POSITION) {
                     playlist.removeAt(idx)
                     playlistAdapter.notifyItemRemoved(idx)

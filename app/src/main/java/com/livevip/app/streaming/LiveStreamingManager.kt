@@ -296,7 +296,7 @@ object LiveStreamingManager {
     // Connection callback — PER DESTINATION (multi-destination direct)
     // ------------------------------------------------------------------
 
-    private inner class DestinationConnectChecker(
+    private class DestinationConnectChecker(
         private val runtime: DestinationRuntime
     ) : ConnectChecker {
 
@@ -646,7 +646,7 @@ object LiveStreamingManager {
                 }
             }
             applyMixerState()
-            beginHealthMonitoring(config.fps, config.audioSampleRate)
+            beginHealthMonitoring(config.fps, config.sampleRate)
             null
         } catch (t: Throwable) {
             if (debugLogging) Log.e(TAG, "startStream failed", t)
@@ -875,8 +875,9 @@ object LiveStreamingManager {
         plan.activeDestinations.forEach { dest ->
             destinationRuntimes += DestinationRuntime(dest)
         }
-        val checkers = destinationRuntimes.map { DestinationConnectChecker(it) }
-            .toTypedArray()
+        val checkers: Array<ConnectChecker> =
+            destinationRuntimes.map { DestinationConnectChecker(it) as ConnectChecker }
+                .toTypedArray()
         val multi = MultiStream(
             context.applicationContext,
             connectCheckerRtmpList = checkers,

@@ -44,7 +44,6 @@ import com.livevip.app.streaming.NetworkMath
 import com.livevip.app.streaming.StreamConfig
 import com.livevip.app.streaming.StreamState
 import com.livevip.app.streaming.StreamStats
-import com.livevip.app.streaming.DestinationState
 import com.livevip.app.util.BatterySafety
 import com.livevip.app.util.NetworkMonitor
 import java.util.Locale
@@ -981,17 +980,17 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
             val row = ItemDestStatusBinding.inflate(inflater, container, false)
             row.destName.text = status.name
             row.destState.text = when (status.state) {
-                DestinationState.LIVE -> getString(R.string.destination_live)
-                DestinationState.CONNECTING -> getString(R.string.destination_connecting)
-                DestinationState.RECONNECTING -> getString(R.string.destination_reconnecting)
-                DestinationState.FAILED -> getString(R.string.destination_failed)
-                DestinationState.STOPPED -> getString(R.string.destination_stopped)
-                DestinationState.IDLE -> getString(R.string.destination_idle)
+                LiveStreamingManager.DestinationState.LIVE -> getString(R.string.destination_live)
+                LiveStreamingManager.DestinationState.CONNECTING -> getString(R.string.destination_connecting)
+                LiveStreamingManager.DestinationState.RECONNECTING -> getString(R.string.destination_reconnecting)
+                LiveStreamingManager.DestinationState.FAILED -> getString(R.string.destination_failed)
+                LiveStreamingManager.DestinationState.STOPPED -> getString(R.string.destination_stopped)
+                LiveStreamingManager.DestinationState.IDLE -> getString(R.string.destination_idle)
             }
             val color = when (status.state) {
-                DestinationState.LIVE -> R.color.status_live
-                DestinationState.CONNECTING, DestinationState.RECONNECTING -> R.color.status_connecting
-                DestinationState.FAILED -> R.color.status_error
+                LiveStreamingManager.DestinationState.LIVE -> R.color.status_live
+                LiveStreamingManager.DestinationState.CONNECTING, LiveStreamingManager.DestinationState.RECONNECTING -> R.color.status_connecting
+                LiveStreamingManager.DestinationState.FAILED -> R.color.status_error
                 else -> R.color.status_offline
             }
             row.destDot.backgroundTintList = ContextCompat.getColorStateList(this, color)

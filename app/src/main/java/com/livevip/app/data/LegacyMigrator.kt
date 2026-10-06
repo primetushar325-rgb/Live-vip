@@ -1,6 +1,7 @@
 package com.livevip.app.data
 
 import android.content.Context
+import com.livevip.app.streaming.StreamPlatform
 
 /**
  * One-time migration from the pre-project ("quick live") app version:

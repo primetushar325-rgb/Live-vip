@@ -144,7 +144,7 @@ object OverlayFilterFactory {
                 textStyle(
                     render = subtitle,
                     config = config.copy(
-                        background = 0x88000000,
+                        background = 0x88000000.toInt(),
                         fontSize = config.fontSize * 0.7f
                     ),
                     streamWidth = streamWidth,

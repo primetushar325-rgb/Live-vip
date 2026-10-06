@@ -118,7 +118,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
         }
         dot.background = makeDot(this)
 
-        val text = TextView(this).apply {
+        val labelView = TextView(this).apply {
             setTextColor(0xFFFFFFFF.toInt())
             text = "LIVE"
             textSize = 13f
@@ -128,7 +128,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { leftMargin = (8 * density).toInt() }
         }
-        label = text
+        label = labelView
 
         val close = TextView(this).apply {
             text = "×"
@@ -146,7 +146,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
         }
 
         root.addView(dot)
-        root.addView(text)
+        root.addView(labelView)
         root.addView(close)
 
         val params = WindowManager.LayoutParams(
