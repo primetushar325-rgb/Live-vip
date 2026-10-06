@@ -4,7 +4,7 @@ package com.livevip.app.streaming
  * STREAM WATCHDOGS — pure state machine, unit tested.
  *
  * Independent monitors for: decoder, encoder, audio, network, memory, thermal.
- * (The RTMP watchdog is per-destination and lives in LiveStreamingManager,
+ * (The RTMP watchdog is per-destination and lives in LiveEngine,
  * next to each destination's own reconnect logic.)
  *
  * Each watchdog reports a targeted recovery action. The #1 rule: recover the

@@ -1,14 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
-  LIVE VIP — single simple screen (Part 5 spec §20).
+  LIVE VIP — the one screen (clean production rebuild).
 
-  RESPONSIVE RULES (screen-shift root-cause fix):
-  - No fixed dp widths on any control row — rows use layout_weight shares.
+  RESPONSIVE RULES:
+  - No fixed dp widths on control rows — every row is layout_weight shares.
   - No negative margins anywhere. Nothing clips.
-  - Root is a vertical ScrollView, children are match_parent / wrap_content,
-    content horizontally centered (gravity center_horizontal).
-  - Window insets are applied in code (HomeActivity) so status/nav bars
-    never overlap content on any Android version.
+  - Root is a vertical ScrollView; content horizontally centered.
+  - Window insets are applied in code (HomeActivity) so bars never overlap.
+  - The preview surface is sized in code to the OUTPUT aspect (PreviewMath).
 -->
 <ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -64,21 +63,21 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Live session detected banner (restored Saved Live while a stream runs) -->
+        <!-- YouTube auto-start hint (shown while sending/streaming to YouTube) -->
         <TextView
-            android:id="@+id/sessionBanner"
+            android:id="@+id/youtubeHint"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
             android:padding="12dp"
             android:background="@drawable/card_bg"
+            android:text="@string/youtube_autostart_hint"
             android:textColor="@color/secondary_cyan"
-            android:textSize="13sp"
+            android:textSize="12sp"
             android:visibility="gone"
-            tools:text="Live session detected — 1280×720 • Loop #3 • 00:12:44"
-            tools:visibility="visible" />
+            tools:visibility="gone" />
 
-        <!-- ============ PREVIEW (the real live composition) ============ -->
+        <!-- ============ PREVIEW (the real composition) ============ -->
         <FrameLayout
             android:id="@+id/previewCard"
             android:layout_width="match_parent"
@@ -107,7 +106,7 @@
                 android:textColor="@color/secondary_cyan"
                 android:textSize="12sp"
                 android:textStyle="bold"
-                tools:text="16:9 • 1920×1080" />
+                tools:text="16:9 • 1280×720" />
 
             <TextView
                 android:id="@+id/previewInfo"
@@ -181,11 +180,55 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- ============ LIVE FORMAT — exactly two options ============ -->
+        <!-- ============ SOURCE ============ -->
         <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
+            android:text="@string/label_source"
+            android:textColor="@color/text_secondary"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:letterSpacing="0.08"
+            tools:ignore="SpUsage" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/sourceVideo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="48dp"
+                android:backgroundTint="@color/card_graphite_high"
+                android:text="@string/source_video"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/sourceCamera"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:minHeight="48dp"
+                android:backgroundTint="@color/card_graphite_high"
+                android:text="@string/source_camera"
+                android:textColor="@color/text_primary"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <!-- ============ LIVE FORMAT — exactly two options ============ -->
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
             android:text="@string/label_live_format"
             android:textColor="@color/text_secondary"
             android:textSize="12sp"
@@ -234,25 +277,45 @@
             android:id="@+id/videoInfo"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="12dp"
+            android:layout_marginTop="14dp"
             android:gravity="center"
             android:textColor="@color/text_secondary"
             android:textSize="13sp"
-            tools:text="holiday.mp4 • 1920×1080 • 24 FPS • 38:02" />
+            tools:text="myvideo.mp4 • 1920×1080 • 24 FPS • 38:02" />
 
-        <Button
-            android:id="@+id/btnSelectVideo"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="10dp"
-            android:minHeight="52dp"
-            android:backgroundTint="@color/card_graphite_high"
-            android:text="@string/action_select_video"
-            android:textColor="@color/text_primary"
-            android:textSize="14sp"
-            android:textStyle="bold"
-            app:icon="@drawable/ic_folder_video"
-            app:iconGravity="textStart" />
+            android:orientation="horizontal">
+
+            <Button
+                android:id="@+id/btnSelectVideo"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="52dp"
+                android:backgroundTint="@color/card_graphite_high"
+                android:text="@string/action_select_video"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                app:icon="@drawable/ic_folder_video"
+                app:iconGravity="textStart" />
+
+            <Button
+                android:id="@+id/btnOpenLibrary"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:minHeight="52dp"
+                android:backgroundTint="@color/card_graphite_high"
+                android:text="@string/action_open_library"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- ============ STREAM SETTINGS ============ -->
         <com.google.android.material.card.MaterialCardView
@@ -484,7 +547,53 @@
                 android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- ============ START / STOP ============ -->
+        <!-- ============ SAVED LIVES ============ -->
+        <com.google.android.material.card.MaterialCardView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="14dp"
+            app:cardBackgroundColor="@color/card_graphite"
+            app:cardCornerRadius="16dp"
+            app:cardElevation="0dp"
+            app:strokeColor="@color/outline_subtle"
+            app:strokeWidth="1dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="16dp">
+
+                <TextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:text="@string/label_saved_lives"
+                    android:textColor="@color/text_primary"
+                    android:textSize="15sp"
+                    android:textStyle="bold" />
+
+                <LinearLayout
+                    android:id="@+id/savedLivesList"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:orientation="vertical" />
+
+                <Button
+                    android:id="@+id/btnSaveCurrent"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:minHeight="48dp"
+                    android:backgroundTint="@color/card_graphite_high"
+                    android:text="@string/action_save_current"
+                    android:textColor="@color/secondary_cyan"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </com.google.android.material.card.MaterialCardView>
+
+        <!-- ============ START LIVE ============ -->
         <Button
             android:id="@+id/btnStartLive"
             android:layout_width="match_parent"
@@ -497,18 +606,41 @@
             android:textSize="16sp"
             android:textStyle="bold" />
 
-        <Button
-            android:id="@+id/btnStopLive"
+        <!-- ============ LIVE CONTROLS (while streaming) ============ -->
+        <LinearLayout
+            android:id="@+id/liveControls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="18dp"
-            android:minHeight="58dp"
-            android:background="@drawable/bg_stop_button"
-            android:text="@string/action_stop_live"
-            android:textColor="@color/text_primary"
-            android:textSize="16sp"
-            android:textStyle="bold"
-            android:visibility="gone" />
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="gone">
+
+            <Button
+                android:id="@+id/btnMuteMicLive"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:minHeight="56dp"
+                android:backgroundTint="@color/card_graphite_high"
+                android:text="@string/action_mute_mic"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <Button
+                android:id="@+id/btnStopLive"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:layout_marginStart="10dp"
+                android:minHeight="56dp"
+                android:background="@drawable/bg_stop_button"
+                android:text="@string/action_stop_live"
+                android:textColor="@color/text_primary"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+        </LinearLayout>
 
         <!-- ============ LIVE STATS ============ -->
         <com.google.android.material.card.MaterialCardView
@@ -522,7 +654,7 @@
             app:cardElevation="0dp"
             app:strokeColor="@color/outline_subtle"
             app:strokeWidth="1dp"
-            tools:visibility="visible">
+            tools:visibility="gone">
 
             <LinearLayout
                 android:layout_width="match_parent"
@@ -589,7 +721,7 @@
                             android:textColor="@color/text_primary"
                             android:textSize="18sp"
                             android:textStyle="bold"
-                            tools:text="5 420 kbps" />
+                            tools:text="4 500 kbps" />
                     </LinearLayout>
                 </LinearLayout>
 
@@ -672,7 +804,7 @@
                             android:textColor="@color/success_green"
                             android:textSize="18sp"
                             android:textStyle="bold"
-                            tools:text="Good" />
+                            tools:text="GOOD" />
                     </LinearLayout>
 
                     <LinearLayout
@@ -700,26 +832,26 @@
                 </LinearLayout>
 
                 <TextView
-                    android:id="@+id/statComponents"
+                    android:id="@+id/statLoop"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
-                    tools:text="Decoder HEALTHY • Encoder HEALTHY • Muxer HEALTHY • RTMP CONNECTED • Ingest VERIFIED" />
+                    tools:text="Loop #3 • Reconnects 0" />
 
                 <TextView
-                    android:id="@+id/statLoop"
+                    android:id="@+id/statComponents"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="4dp"
                     android:textColor="@color/text_secondary"
                     android:textSize="11sp"
-                    tools:text="Loop #3 • Reconnects 0" />
+                    tools:text="Decoder READY • Encoder READY • Muxer READY • RTMP CONNECTED • Ingest VERIFIED" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
 
-        <!-- ============ DEVELOPER DIAGNOSTICS (toggle: long-press title) ============ -->
+        <!-- ============ DEVELOPER DIAGNOSTICS (long-press title) ============ -->
         <com.google.android.material.card.MaterialCardView
             android:id="@+id/diagnosticsCard"
             android:layout_width="match_parent"
@@ -755,10 +887,16 @@
                 <TextView android:id="@+id/diagEncoder" style="@style/DiagRow" android:text="—" />
                 <TextView android:id="@+id/diagAudio" style="@style/DiagRow" android:text="—" />
                 <TextView android:id="@+id/diagRtmp" style="@style/DiagRow" android:text="—" />
-                <TextView android:id="@+id/diagFps" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagVideoFrames" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagAudioFrames" style="@style/DiagRow" android:text="—" />
                 <TextView android:id="@+id/diagPackets" style="@style/DiagRow" android:text="—" />
                 <TextView android:id="@+id/diagBytes" style="@style/DiagRow" android:text="—" />
-                <TextView android:id="@+id/diagError" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagRtmpError" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagEncoderError" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagDecoderError" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagLoop" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagReconnects" style="@style/DiagRow" android:text="—" />
+                <TextView android:id="@+id/diagAvOffset" style="@style/DiagRow" android:text="—" />
             </LinearLayout>
         </com.google.android.material.card.MaterialCardView>
     </LinearLayout>

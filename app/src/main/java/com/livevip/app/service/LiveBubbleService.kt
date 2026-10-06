@@ -4,6 +4,7 @@ import android.annotation.SuppressLint
 import android.app.Service
 import android.content.Intent
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.os.Build
 import android.os.Handler
 import android.os.IBinder
@@ -13,12 +14,11 @@ import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
-import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.livevip.app.R
-import com.livevip.app.streaming.LiveStreamingManager
-import com.livevip.app.streaming.StreamState
+import com.livevip.app.engine.LiveEngine
+import com.livevip.app.engine.LiveState
 import com.livevip.app.ui.HomeActivity
 import java.util.Locale
 
@@ -26,18 +26,17 @@ import java.util.Locale
  * FLOATING LIVE CONTROL — optional bubble shown while the app is in the
  * background and a broadcast is running.
  *
- *   🔴 LIVE 01:23:45
+ *   🔴 STREAMING 01:23:45
  *
- *   Tap        → open the Live Dashboard
+ *   Tap        → open the app
  *   Double tap → minimize (collapse to a small dot)
  *   Close (×)  → closes the BUBBLE ONLY — the live stream is NEVER stopped
  *                by closing the bubble (stopping live is an explicit action
- *                in the dashboard / notification).
+ *                in the app / notification).
  *
- * Requires SYSTEM_ALERT_WINDOW (canDrawOverlays) — requested from the
- * dashboard with the standard settings intent when missing.
+ * Requires SYSTEM_ALERT_WINDOW (canDrawOverlays).
  */
-class LiveBubbleService : Service(), LiveStreamingManager.Listener {
+class LiveBubbleService : Service(), LiveEngine.Listener {
 
     private var windowManager: WindowManager? = null
     private var bubble: View? = null
@@ -49,10 +48,11 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
     private val uiTicker = object : Runnable {
         override fun run() {
             updateBubble()
-            if (LiveStreamingManager.isStreaming ||
-                LiveStreamingManager.state == StreamState.CONNECTING ||
-                LiveStreamingManager.state == StreamState.RECONNECTING ||
-                LiveStreamingManager.state == StreamState.PUBLISHING
+            if (LiveEngine.isStreaming ||
+                LiveEngine.state == LiveState.CONNECTING ||
+                LiveEngine.state == LiveState.CONNECTED ||
+                LiveEngine.state == LiveState.SENDING ||
+                LiveEngine.state == LiveState.RECONNECTING
             ) {
                 handler.postDelayed(this, 1000)
             } else {
@@ -73,24 +73,26 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
             return START_NOT_STICKY
         }
         if (bubble == null) showBubble()
-        LiveStreamingManager.addListener(this)
+        LiveEngine.addListener(this)
         handler.removeCallbacks(uiTicker)
         handler.post(uiTicker)
         return START_NOT_STICKY
     }
 
     override fun onDestroy() {
-        LiveStreamingManager.removeListener(this)
+        LiveEngine.removeListener(this)
         handler.removeCallbacks(uiTicker)
         removeBubble()
         super.onDestroy()
     }
 
-    override fun onStateChanged(state: StreamState, message: String?) {
-        if (state == StreamState.OFFLINE || state == StreamState.ERROR) stopSelf()
+    override fun onLiveStateChanged(state: LiveState, message: String?) {
+        if (state == LiveState.OFFLINE || state == LiveState.ERROR || state == LiveState.STOPPED) {
+            stopSelf()
+        }
     }
 
-    override fun onStatsChanged(stats: com.livevip.app.streaming.StreamStats) {
+    override fun onLiveSnapshot(snapshot: com.livevip.app.engine.LiveSnapshot) {
         updateBubble()
     }
 
@@ -109,8 +111,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
 
         val root = LinearLayout(this).apply {
             orientation = LinearLayout.HORIZONTAL
-            setPadding(padding, (8 * density).toInt(), padding, (8 * density).toInt()
-            )
+            setPadding(padding, (8 * density).toInt(), padding, (8 * density).toInt())
             background = makeBubbleBackground(this@LiveBubbleService, radius)
         }
 
@@ -121,7 +122,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
 
         val labelView = TextView(this).apply {
             setTextColor(0xFFFFFFFF.toInt())
-            text = "LIVE"
+            text = "STREAMING"
             textSize = 13f
             typeface = android.graphics.Typeface.DEFAULT_BOLD
             layoutParams = LinearLayout.LayoutParams(
@@ -208,7 +209,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
                                 if (minimized) View.GONE else View.VISIBLE
                         } else {
                             handler.postDelayed({
-                                // Single tap → open the Live Dashboard.
+                                // Single tap → open the app.
                                 startActivity(
                                     Intent(this@LiveBubbleService, HomeActivity::class.java)
                                         .addFlags(
@@ -236,13 +237,16 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
     }
 
     private fun updateBubble() {
-        val stats = LiveStreamingManager.stats
-        label?.text = when {
-            LiveStreamingManager.state == StreamState.CONNECTING -> "CONNECTING"
-            LiveStreamingManager.state == StreamState.PUBLISHING -> "VERIFYING"
-            LiveStreamingManager.state == StreamState.RECONNECTING -> "RECONNECTING"
-            else -> String.format(Locale.US, "LIVE %02d:%02d:%02d",
-                stats.durationSec / 3600, (stats.durationSec % 3600) / 60, stats.durationSec % 60)
+        val snap = LiveEngine.snapshot
+        label?.text = when (LiveEngine.state) {
+            LiveState.CONNECTING -> "CONNECTING"
+            LiveState.CONNECTED -> "CONNECTED"
+            LiveState.SENDING -> "SENDING"
+            LiveState.RECONNECTING -> "RECONNECTING"
+            else -> String.format(
+                Locale.US, "STREAMING %02d:%02d:%02d",
+                snap.durationSec / 3600, (snap.durationSec % 3600) / 60, snap.durationSec % 60
+            )
         }
     }
 
@@ -257,31 +261,26 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
     }
 
     private fun makeBubbleBackground(context: android.content.Context, radiusPx: Int) =
-        android.graphics.drawable.GradientDrawable().apply {
+        GradientDrawable().apply {
             setColor(0xE615151D.toInt())
             cornerRadius = radiusPx.toFloat()
-            setStroke(1, 0x337C4DFF)
         }
 
     private fun makeDot(context: android.content.Context) =
-        android.graphics.drawable.GradientDrawable().apply {
-            shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(0xFFEF4444.toInt())
+        GradientDrawable().apply {
+            shape = GradientDrawable.OVAL
+            setColor(0xFF22C55E.toInt())
         }
 
-    @Suppress("unused")
-    private fun keepFrameLayoutImport() = FrameLayout(this)
-
     companion object {
-        const val ACTION_CLOSE = "com.livevip.app.action.CLOSE_BUBBLE"
+        private const val ACTION_CLOSE = "com.livevip.app.action.CLOSE_BUBBLE"
 
         fun start(context: android.content.Context) {
-            if (!Settings.canDrawOverlays(context)) return
             context.startService(Intent(context, LiveBubbleService::class.java))
         }
 
         fun stop(context: android.content.Context) {
-            context.startService(
+            context.stopService(
                 Intent(context, LiveBubbleService::class.java).setAction(ACTION_CLOSE)
             )
         }

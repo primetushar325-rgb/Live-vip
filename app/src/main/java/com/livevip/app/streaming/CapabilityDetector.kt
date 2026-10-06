@@ -26,14 +26,6 @@ object CapabilityDetector {
             width in 1..maxWidth && height in 1..maxHeight
     }
 
-    /** Supported output resolutions (from the full ladder), given source + encoder. */
-    data class ResolutionSupport(
-        val preset: QualityProfiles.ResolutionPreset,
-        val supported: Boolean,
-        /** Human-readable reason when unsupported. */
-        val reason: String?
-    )
-
     private var cachedCaps: VideoEncoderCaps? = null
 
     /**
@@ -113,51 +105,6 @@ object CapabilityDetector {
         } catch (_: Throwable) {
             null
         }
-    }
-
-    /**
-     * Which resolution presets can honestly be offered for a given source video
-     * (source width/height must be at least the preset — no fake upscaling).
-     */
-    fun resolutionSupport(
-        sourceWidth: Int,
-        sourceHeight: Int
-    ): List<ResolutionSupport> {
-        val caps = videoEncoderCaps()
-        return QualityProfiles.RESOLUTIONS.map { preset ->
-            when {
-                caps == null -> ResolutionSupport(
-                    preset, false,
-                    "No H.264 encoder detected on this device"
-                )
-
-                !caps.supports(preset.width, preset.height) -> ResolutionSupport(
-                    preset, false,
-                    if (preset.isUhd) "4K unavailable on this device " +
-                        "(encoder max ${caps.maxWidth}×${caps.maxHeight})"
-                    else "${preset.label} unavailable on this device " +
-                        "(encoder max ${caps.maxWidth}×${caps.maxHeight})"
-                )
-
-                sourceWidth > 0 && sourceHeight > 0 &&
-                    (preset.width > sourceWidth || preset.height > sourceHeight) ->
-                    ResolutionSupport(
-                        preset, false,
-                        "Source is only ${sourceWidth}×${sourceHeight} — ${preset.label} would be upscaling"
-                    )
-
-                else -> ResolutionSupport(preset, true, null)
-            }
-        }
-    }
-
-    /** FPS options that make sense for a source fps (no fake high-fps from low-fps source). */
-    fun supportedFpsOptions(sourceFps: Int): List<Int> {
-        val caps = videoEncoderCaps()
-        val encoderMax = caps?.maxFps ?: 30
-        val source = if (sourceFps > 0) sourceFps else 30
-        return QualityProfiles.FPS_OPTIONS.filter { it <= minOf(source, encoderMax) }
-            .ifEmpty { listOf(minOf(source, encoderMax).coerceAtLeast(24)) }
     }
 
     /** Warm the cache on a background thread (cheap no-op if already scanned). */

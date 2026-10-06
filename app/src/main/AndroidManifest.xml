@@ -20,7 +20,7 @@
     <uses-feature android:name="android.hardware.microphone" android:required="false" />
 
     <application
-        android:name=".LiveVipApplication"
+        android:name=".LiveVipApp"
         android:allowBackup="false"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
@@ -42,8 +42,14 @@
             </intent-filter>
         </activity>
 
+        <activity
+            android:name=".ui.LibraryActivity"
+            android:exported="false"
+            android:screenOrientation="portrait"
+            tools:ignore="LockedOrientationActivity" />
+
         <service
-            android:name=".service.LiveStreamingService"
+            android:name=".service.LiveService"
             android:exported="false"
             android:foregroundServiceType="camera|microphone|mediaPlayback" />
 
