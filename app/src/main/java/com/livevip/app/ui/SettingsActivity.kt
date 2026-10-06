@@ -1,5 +1,6 @@
 package com.livevip.app.ui
 
+import android.os.Build
 import android.os.Bundle
 import android.widget.ArrayAdapter
 import androidx.appcompat.app.AppCompatActivity
@@ -7,9 +8,13 @@ import androidx.appcompat.app.AppCompatDelegate
 import com.google.android.material.snackbar.Snackbar
 import com.livevip.app.R
 import com.livevip.app.camera.CameraConfig
+import com.livevip.app.data.SecretsVault
 import com.livevip.app.data.SettingsRepository
 import com.livevip.app.databinding.ActivitySettingsBinding
+import com.livevip.app.relay.RelaySessionClient
 import com.livevip.app.streaming.LiveStreamingManager
+import com.livevip.app.util.BatterySafety
+import java.util.concurrent.Executors
 
 /** Dedicated settings screen: Video / Audio / Stream / Appearance / Advanced. */
 class SettingsActivity : AppCompatActivity() {
@@ -40,7 +45,113 @@ class SettingsActivity : AppCompatActivity() {
         setupAudioSection()
         setupStreamSection()
         setupAppearanceSection()
+        setupRelaySection()
+        setupBackgroundSection()
+        setupQuickLiveSection()
         setupAdvancedSection()
+    }
+
+    override fun onStop() {
+        persistSecretInputs()
+        super.onStop()
+    }
+
+    // ---------------- Smart Relay ----------------
+
+    private fun setupRelaySection() {
+        val vault = SecretsVault.get(this)
+        binding.inputRelayUrl.setText(vault.relayApiUrl)
+        binding.inputRelayToken.setText(vault.relayToken)
+
+        binding.btnTestRelay.setOnClickListener {
+            persistSecretInputs()
+            val url = vault.relayApiUrl
+            val token = vault.relayToken
+            if (!url.startsWith("https://")) {
+                Snackbar.make(
+                    binding.root,
+                    "Relay URL must start with https://",
+                    Snackbar.LENGTH_LONG
+                ).show()
+                return@setOnClickListener
+            }
+            binding.btnTestRelay.isEnabled = false
+            Executors.newSingleThreadExecutor().execute {
+                val result = RelaySessionClient.ping(url, token)
+                runOnUiThread {
+                    if (isFinishing || isDestroyed) return@runOnUiThread
+                    binding.btnTestRelay.isEnabled = true
+                    when (result) {
+                        is RelaySessionClient.Result.Ok ->
+                            Snackbar.make(binding.root, R.string.relay_ok, Snackbar.LENGTH_SHORT).show()
+                        is RelaySessionClient.Result.Error ->
+                            Snackbar.make(
+                                binding.root,
+                                getString(R.string.relay_unavailable, result.message),
+                                Snackbar.LENGTH_LONG
+                            ).show()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun persistSecretInputs() {
+        val vault = SecretsVault.get(this)
+        vault.relayApiUrl = binding.inputRelayUrl.text?.toString()?.trim().orEmpty()
+        vault.relayToken = binding.inputRelayToken.text?.toString()?.trim().orEmpty()
+        settings.streamUrl = binding.inputQuickUrl.text?.toString()?.trim().orEmpty()
+        settings.streamKey = binding.inputQuickKey.text?.toString()?.trim().orEmpty()
+    }
+
+    // ---------------- Background safety ----------------
+
+    private fun setupBackgroundSection() {
+        binding.switchFloatingBubble.isChecked = settings.floatingBubbleEnabled
+        binding.switchFloatingBubble.setOnCheckedChangeListener { _, checked ->
+            settings.floatingBubbleEnabled = checked
+            if (checked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.M &&
+                !android.provider.Settings.canDrawOverlays(this)
+            ) {
+                Snackbar.make(
+                    binding.root,
+                    R.string.overlay_permission_needed,
+                    Snackbar.LENGTH_LONG
+                ).show()
+                try {
+                    startActivity(
+                        android.content.Intent(
+                            android.provider.Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            android.net.Uri.parse("package:$packageName")
+                        )
+                    )
+                } catch (_: Throwable) {
+                }
+            }
+        }
+        val assessment = BatterySafety.assess(this)
+        binding.batteryStatus.text = if (assessment.ignoringOptimizations) {
+            "Battery optimization: UNRESTRICTED ✓"
+        } else {
+            getString(R.string.battery_warning_text)
+        }
+        binding.btnBatteryFix.setOnClickListener {
+            try {
+                startActivity(BatterySafety.exemptionIntent(this))
+            } catch (_: Throwable) {
+                try {
+                    startActivity(BatterySafety.optimizationListIntent())
+                } catch (_: Throwable) {
+                }
+            }
+        }
+    }
+
+    // ---------------- Quick live (legacy single destination) ----------------
+
+    private fun setupQuickLiveSection() {
+        binding.inputQuickUrl.setText(settings.streamUrl)
+        binding.inputQuickKey.setText(settings.streamKey)
     }
 
     // ---------------- Video ----------------

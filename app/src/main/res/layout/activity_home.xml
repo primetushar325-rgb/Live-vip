@@ -13,663 +13,698 @@
         android:orientation="vertical"
         android:padding="16dp">
 
-        <!-- Header -->
+        <!-- ================= Header ================= -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
             android:orientation="horizontal">
 
-            <TextView
+            <LinearLayout
                 android:layout_width="0dp"
+                android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/app_title_styled"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                android:letterSpacing="0.06"
-                android:textColor="@color/text_primary" />
+                android:orientation="vertical">
 
-            <View
-                android:id="@+id/statusDot"
-                android:layout_width="10dp"
-                android:layout_height="10dp"
-                android:background="@drawable/circle_dot"
-                android:backgroundTint="@color/status_offline" />
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:letterSpacing="0.06"
+                    android:text="@string/app_title_styled"
+                    android:textSize="22sp"
+                    android:textStyle="bold"
+                    android:textColor="@color/text_primary" />
 
-            <TextView
-                android:id="@+id/statusText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="8dp"
-                android:layout_marginEnd="10dp"
-                android:text="@string/state_offline"
-                android:textStyle="bold"
-                android:textSize="12sp"
-                android:textColor="@color/text_secondary" />
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/statusDot"
+                        android:layout_width="9dp"
+                        android:layout_height="9dp"
+                        android:background="@drawable/circle_dot"
+                        android:backgroundTint="@color/status_offline" />
+
+                    <TextView
+                        android:id="@+id/statusText"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="6dp"
+                        android:text="@string/state_offline"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
 
             <ImageButton
                 android:id="@+id/btnSettings"
-                android:layout_width="40dp"
-                android:layout_height="40dp"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
                 android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/btn_settings"
-                android:src="@drawable/ic_settings" />
+                android:contentDescription="@string/settings"
+                android:src="@drawable/ic_settings"
+                app:tint="@color/text_secondary" />
         </LinearLayout>
 
-        <!-- Preview -->
-        <com.google.android.material.card.MaterialCardView
+        <!-- ================= Battery safety banner ================= -->
+        <LinearLayout
+            android:id="@+id/batteryBanner"
             android:layout_width="match_parent"
-            android:layout_height="300dp"
+            android:layout_height="wrap_content"
             android:layout_marginTop="12dp"
-            app:cardCornerRadius="22dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/outline_subtle"
-            app:cardBackgroundColor="@color/preview_bg">
+            android:background="@drawable/bg_glass_badge"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:padding="12dp"
+            android:visibility="gone"
+            tools:visibility="visible">
 
-            <FrameLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent">
+            <ImageView
+                android:layout_width="20dp"
+                android:layout_height="20dp"
+                android:importantForAccessibility="no"
+                android:src="@drawable/ic_warning"
+                app:tint="@color/warning_amber" />
 
-                <SurfaceView
-                    android:id="@+id/previewSurface"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent" />
-
-                <LinearLayout
-                    android:id="@+id/previewPlaceholder"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@color/preview_bg"
-                    android:gravity="center"
-                    android:orientation="vertical">
-
-                    <ImageView
-                        android:id="@+id/previewPlaceholderIcon"
-                        android:layout_width="52dp"
-                        android:layout_height="52dp"
-                        android:importantForAccessibility="no"
-                        android:src="@drawable/ic_videocam" />
-
-                    <TextView
-                        android:id="@+id/previewPlaceholderText"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="10dp"
-                        android:gravity="center"
-                        android:paddingHorizontal="24dp"
-                        android:text="@string/no_video_selected"
-                        android:textColor="@color/text_secondary" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnPlaceholderAction"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="14dp"
-                        android:text="@string/select_video" />
-                </LinearLayout>
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:layout_weight="1"
+                android:orientation="vertical">
 
                 <TextView
-                    android:id="@+id/liveBadge"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_margin="12dp"
-                    android:background="@drawable/badge_live_bg"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="4dp"
-                    android:text="@string/live_badge"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:textStyle="bold"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
+                    android:text="@string/battery_warning_title"
+                    android:textColor="@color/text_primary"
+                    android:textSize="13sp"
+                    android:textStyle="bold" />
 
                 <TextView
-                    android:id="@+id/timerText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_gravity="top|end"
-                    android:layout_margin="12dp"
-                    android:background="@drawable/bg_glass_badge"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="4dp"
-                    android:text="00:00:00"
-                    android:textColor="#FFFFFF"
-                    android:textSize="12sp"
-                    android:visibility="gone"
-                    tools:visibility="visible"
-                    tools:ignore="HardcodedText" />
-
-                <TextView
-                    android:id="@+id/previewStatusBadge"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_gravity="bottom|start"
-                    android:layout_margin="12dp"
-                    android:background="@drawable/bg_glass_badge"
-                    android:paddingHorizontal="10dp"
-                    android:paddingVertical="4dp"
-                    android:text="@string/state_offline"
+                    android:text="@string/battery_warning_text"
                     android:textColor="@color/text_secondary"
-                    android:textSize="11sp"
-                    android:visibility="gone"
-                    tools:visibility="visible" />
-            </FrameLayout>
-        </com.google.android.material.card.MaterialCardView>
+                    android:textSize="12sp" />
+            </LinearLayout>
 
-        <!-- SOURCE mode -->
-        <TextView
-            style="@style/HomeSectionLabel"
-            android:text="@string/section_source" />
+            <Button
+                android:id="@+id/btnFixBattery"
+                style="@style/Widget.Material3.Button.TonalButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/fix_now"
+                android:textSize="12sp" />
+        </LinearLayout>
 
+        <!-- ================= Preview ================= -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="220dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/preview_corner_bg">
+
+            <SurfaceView
+                android:id="@+id/previewSurface"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent" />
+
+            <TextView
+                android:id="@+id/timerText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|end"
+                android:layout_margin="12dp"
+                android:background="@drawable/bg_glass_badge"
+                android:fontFamily="monospace"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/secondary_cyan"
+                android:textSize="14sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:text="01:32:45"
+                tools:visibility="visible" />
+
+            <TextView
+                android:id="@+id/liveBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="top|start"
+                android:layout_margin="12dp"
+                android:background="@drawable/badge_live_bg"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:text="@string/state_live"
+                android:textColor="@color/text_primary"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:visibility="gone"
+                tools:visibility="visible" />
+
+            <TextView
+                android:id="@+id/previewStatusBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="bottom|start"
+                android:layout_margin="12dp"
+                android:background="@drawable/bg_glass_badge"
+                android:paddingStart="10dp"
+                android:paddingEnd="10dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="4dp"
+                android:textColor="@color/secondary_cyan"
+                android:textSize="12sp"
+                android:visibility="gone"
+                tools:text="720p • 30 FPS"
+                tools:visibility="visible" />
+
+            <LinearLayout
+                android:id="@+id/previewPlaceholder"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:padding="20dp">
+
+                <ImageView
+                    android:id="@+id/placeholderIcon"
+                    android:layout_width="46dp"
+                    android:layout_height="46dp"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_folder_video"
+                    app:tint="@color/primary_purple" />
+
+                <TextView
+                    android:id="@+id/previewPlaceholderText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="10dp"
+                    android:gravity="center"
+                    android:text="@string/no_video_selected"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="13sp" />
+
+                <Button
+                    android:id="@+id/btnPlaceholderAction"
+                    style="@style/Widget.Material3.Button.TonalButton"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/select_video" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <!-- ================= Source selector ================= -->
         <com.google.android.material.button.MaterialButtonToggleGroup
             android:id="@+id/modeToggle"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            app:singleSelection="true"
-            app:selectionRequired="true">
+            android:layout_marginTop="12dp"
+            app:selectionRequired="true"
+            app:singleSelection="true">
 
-            <com.google.android.material.button.MaterialButton
+            <Button
                 android:id="@+id/btnModeVideo"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="@string/mode_video"
-                app:icon="@drawable/ic_video_library" />
+                android:layout_weight="1"
+                android:text="@string/source_video_live"
+                android:textSize="13sp" />
 
-            <com.google.android.material.button.MaterialButton
+            <Button
                 android:id="@+id/btnModeCamera"
                 style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:text="@string/mode_camera"
-                app:icon="@drawable/ic_videocam_small" />
+                android:layout_weight="1"
+                android:text="@string/source_camera"
+                android:textSize="13sp" />
         </com.google.android.material.button.MaterialButtonToggleGroup>
 
-        <!-- Selected video card (VIDEO mode) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/videoCard"
+        <!-- Camera quick controls -->
+        <LinearLayout
+            android:id="@+id/cameraControls"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/outline_subtle"
-            app:cardBackgroundColor="@color/card_graphite">
+            android:layout_marginTop="8dp"
+            android:gravity="center"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
 
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="horizontal"
-                android:padding="12dp"
-                android:gravity="center_vertical">
+            <ImageButton
+                android:id="@+id/btnSwitchCamera"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/switch_camera"
+                android:src="@drawable/ic_camera_switch"
+                app:tint="@color/text_primary" />
 
-                <ImageView
-                    android:id="@+id/videoThumb"
-                    android:layout_width="84dp"
-                    android:layout_height="56dp"
-                    android:background="@color/preview_bg"
-                    android:scaleType="centerCrop"
-                    android:importantForAccessibility="no" />
+            <ImageButton
+                android:id="@+id/btnFlash"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="14dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/flash"
+                android:src="@drawable/ic_flash_off"
+                app:tint="@color/text_primary" />
 
-                <LinearLayout
-                    android:layout_width="0dp"
-                    android:layout_weight="1"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
-                    android:orientation="vertical">
+            <ImageButton
+                android:id="@+id/btnMic"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:layout_marginStart="14dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/microphone"
+                android:src="@drawable/ic_mic_off"
+                app:tint="@color/text_primary" />
+        </LinearLayout>
 
-                    <TextView
-                        android:id="@+id/videoName"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:ellipsize="middle"
-                        android:maxLines="1"
-                        android:text="@string/no_video_selected"
-                        android:textStyle="bold"
-                        android:textColor="@color/text_primary" />
-
-                    <TextView
-                        android:id="@+id/videoMeta"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="2dp"
-                        android:maxLines="1"
-                        android:text="@string/tap_select_video_hint"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_secondary" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:gravity="center">
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnSelectVideo"
-                        style="@style/Widget.Material3.Button.TonalButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:minWidth="0dp"
-                        android:paddingHorizontal="12dp"
-                        android:text="@string/change_video"
-                        android:textSize="12sp" />
-
-                    <com.google.android.material.button.MaterialButton
-                        android:id="@+id/btnLibrary"
-                        style="@style/Widget.Material3.Button.TextButton"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:minWidth="0dp"
-                        android:paddingHorizontal="12dp"
-                        android:text="@string/library"
-                        android:textSize="12sp" />
-                </LinearLayout>
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Audio mixer (VIDEO mode) -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/mixerCard"
+        <!-- ================= Live dashboard (visible while live) ================= -->
+        <LinearLayout
+            android:id="@+id/liveDashboard"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/outline_subtle"
-            app:cardBackgroundColor="@color/card_graphite">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/audio_mixer"
-                    android:textStyle="bold"
-                    android:textSize="13sp"
-                    android:textColor="@color/secondary_cyan" />
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="6dp"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="90dp"
-                        android:layout_height="wrap_content"
-                        android:text="@string/video_audio"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_secondary" />
-
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderVideoVolume"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:valueFrom="0"
-                        android:valueTo="100"
-                        android:value="100"
-                        android:stepSize="1" />
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchVideoAudio"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="true" />
-                </LinearLayout>
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:gravity="center_vertical"
-                    android:orientation="horizontal">
-
-                    <TextView
-                        android:layout_width="90dp"
-                        android:layout_height="wrap_content"
-                        android:text="@string/microphone"
-                        android:textSize="12sp"
-                        android:textColor="@color/text_secondary" />
-
-                    <com.google.android.material.slider.Slider
-                        android:id="@+id/sliderMicVolume"
-                        android:layout_width="0dp"
-                        android:layout_weight="1"
-                        android:layout_height="wrap_content"
-                        android:valueFrom="0"
-                        android:valueTo="100"
-                        android:value="100"
-                        android:stepSize="1" />
-
-                    <com.google.android.material.materialswitch.MaterialSwitch
-                        android:id="@+id/switchMic"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:checked="false" />
-                </LinearLayout>
-
-                <TextView
-                    android:id="@+id/mixerHint"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="4dp"
-                    android:text="@string/mixer_hint"
-                    android:textSize="11sp"
-                    android:textColor="@color/text_secondary"
-                    android:alpha="0.8" />
-            </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
-
-        <!-- Stats -->
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/statsCard"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            app:cardCornerRadius="18dp"
-            app:cardElevation="0dp"
-            app:strokeWidth="1dp"
-            app:strokeColor="@color/outline_subtle"
-            app:cardBackgroundColor="@color/card_graphite"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/card_bg"
+            android:orientation="vertical"
+            android:padding="14dp"
             android:visibility="gone"
             tools:visibility="visible">
 
             <LinearLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:orientation="vertical"
-                android:padding="14dp">
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-                <LinearLayout
-                    android:layout_width="match_parent"
+                <TextView
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal">
+                    android:layout_weight="1"
+                    android:letterSpacing="0.1"
+                    android:text="@string/live_dashboard"
+                    android:textColor="@color/live_red"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_bitrate_label" />
-                        <TextView android:id="@+id/statBitrate" style="@style/StatValue" tools:text="2500 kbps" />
-                    </LinearLayout>
+                <ImageButton
+                    android:id="@+id/btnSkipPrevious"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/skip_previous"
+                    android:src="@drawable/ic_skip_previous"
+                    app:tint="@color/text_primary" />
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_fps_label" />
-                        <TextView android:id="@+id/statFps" style="@style/StatValue" tools:text="30" />
-                    </LinearLayout>
+                <ImageButton
+                    android:id="@+id/btnSkipNext"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/skip_next"
+                    android:src="@drawable/ic_skip_next"
+                    app:tint="@color/text_primary" />
+            </LinearLayout>
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_dropped_label" />
-                        <TextView android:id="@+id/statDropped" style="@style/StatValue" tools:text="0" />
-                    </LinearLayout>
+            <TextView
+                android:id="@+id/nowPlaying"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="@color/text_secondary"
+                android:textSize="12sp"
+                tools:text="Now: MyVideo.mp4 (1/3)" />
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_connection_label" />
-                        <TextView android:id="@+id/statConnection" style="@style/StatValue"
-                            android:textColor="@color/status_live" tools:text="GOOD" />
-                    </LinearLayout>
+            <!-- Stats grid -->
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="10dp"
+                android:orientation="horizontal">
+
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/stat_bitrate_label" />
+                    <TextView android:id="@+id/statBitrate" style="@style/StatValue" tools:text="2500 kbps" />
                 </LinearLayout>
 
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:layout_marginTop="10dp"
-                    android:orientation="horizontal">
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/stat_fps_label" />
+                    <TextView android:id="@+id/statFps" style="@style/StatValue" tools:text="30" />
+                </LinearLayout>
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_loop_label" />
-                        <TextView android:id="@+id/statLoops" style="@style/StatValue" tools:text="#14" />
-                    </LinearLayout>
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/stat_dropped_label" />
+                    <TextView android:id="@+id/statDropped" style="@style/StatValue" tools:text="0" />
+                </LinearLayout>
 
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_reconnect_label" />
-                        <TextView android:id="@+id/statReconnects" style="@style/StatValue" tools:text="0" />
-                    </LinearLayout>
-
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_mic_label" />
-                        <TextView android:id="@+id/statMic" style="@style/StatValue" tools:text="OFF" />
-                    </LinearLayout>
-
-                    <LinearLayout style="@style/StatCell">
-                        <TextView style="@style/StatLabel" android:text="@string/stat_mode_label" />
-                        <TextView android:id="@+id/statMode" style="@style/StatValue" tools:text="VIDEO" />
-                    </LinearLayout>
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/stat_connection_label" />
+                    <TextView android:id="@+id/statConnection" style="@style/StatValue"
+                        android:textColor="@color/success_green" tools:text="Good" />
                 </LinearLayout>
             </LinearLayout>
-        </com.google.android.material.card.MaterialCardView>
 
-        <!-- Stream profile -->
-        <TextView
-            style="@style/HomeSectionLabel"
-            android:text="@string/section_stream_destination" />
-
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="6dp"
-            android:orientation="horizontal"
-            android:gravity="center_vertical">
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/profileLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-                android:layout_width="0dp"
-                android:layout_weight="1"
+            <LinearLayout
+                android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:hint="@string/stream_profile">
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
 
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/profileDropdown"
-                    android:layout_width="match_parent"
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/loop_counter_label" />
+                    <TextView android:id="@+id/statLoops" style="@style/StatValue" tools:text="#87" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/stat_reconnect_label" />
+                    <TextView android:id="@+id/statReconnects" style="@style/StatValue" tools:text="0" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/destinations_label" />
+                    <TextView android:id="@+id/statDestinations" style="@style/StatValue" tools:text="3/3" />
+                </LinearLayout>
+
+                <LinearLayout style="@style/StatCell">
+                    <TextView style="@style/StatLabel" android:text="@string/av_sync_label" />
+                    <TextView android:id="@+id/statTimeline" style="@style/StatValue"
+                        android:textColor="@color/success_green" tools:text="✓" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <!-- Per-destination live status -->
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:letterSpacing="0.08"
+                android:text="@string/destinations_label"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                android:textStyle="bold" />
+
+            <LinearLayout
+                android:id="@+id/destinationList"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="vertical" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnDashboardAudio"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textSize="14sp" />
-            </com.google.android.material.textfield.TextInputLayout>
+                    android:layout_weight="1"
+                    android:text="@string/audio_mixer_short"
+                    android:textSize="10sp"
+                    app:icon="@drawable/ic_mic"
+                    app:iconGravity="textStart" />
 
-            <ImageButton
-                android:id="@+id/btnSaveProfile"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:layout_marginStart="8dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/save_profile"
-                android:src="@drawable/ic_save" />
+                <Button
+                    android:id="@+id/btnDashboardOverlay"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/overlays"
+                    android:textSize="10sp"
+                    app:icon="@drawable/ic_layers"
+                    app:iconGravity="textStart" />
 
-            <ImageButton
-                android:id="@+id/btnDeleteProfile"
-                android:layout_width="44dp"
-                android:layout_height="44dp"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/delete_profile"
-                android:src="@drawable/ic_delete" />
+                <Button
+                    android:id="@+id/btnDashboardScenes"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/scenes"
+                    android:textSize="10sp"
+                    app:icon="@drawable/ic_playlist"
+                    app:iconGravity="textStart" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:orientation="horizontal">
+
+                <Button
+                    android:id="@+id/btnDashboardChat"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:text="@string/chat"
+                    android:textSize="10sp"
+                    app:icon="@drawable/ic_chat"
+                    app:iconGravity="textStart" />
+
+                <Button
+                    android:id="@+id/btnDashboardAnalytics"
+                    style="@style/Widget.Material3.Button.OutlinedButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:text="@string/analytics"
+                    android:textSize="10sp"
+                    app:icon="@drawable/ic_analytics"
+                    app:iconGravity="textStart" />
+
+                <Button
+                    android:id="@+id/btnDashboardStop"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="6dp"
+                    android:layout_weight="1"
+                    android:background="@drawable/bg_stop_button"
+                    android:text="@string/stop_live_action"
+                    android:textColor="@color/text_primary"
+                    android:textSize="10sp"
+                    app:backgroundTint="@null" />
+            </LinearLayout>
         </LinearLayout>
 
-        <!-- Platform -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/platformLayout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="@string/stream_platform">
-
-            <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                android:id="@+id/platformDropdown"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="none"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Stream URL -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/inputUrlLayout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="@string/stream_url">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/inputUrl"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textUri"
-                android:maxLines="1"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Stream key -->
-        <com.google.android.material.textfield.TextInputLayout
-            android:id="@+id/inputKeyLayout"
-            style="@style/Widget.Material3.TextInputLayout.OutlinedBox"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:hint="@string/stream_key"
-            app:endIconMode="password_toggle">
-
-            <com.google.android.material.textfield.TextInputEditText
-                android:id="@+id/inputKey"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:inputType="textPassword"
-                android:maxLines="1"
-                android:textSize="14sp" />
-        </com.google.android.material.textfield.TextInputLayout>
-
-        <!-- Quality -->
+        <!-- ================= Current project card ================= -->
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
+            android:layout_marginTop="14dp"
+            android:background="@drawable/card_bg"
+            android:orientation="vertical"
+            android:padding="14dp">
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:letterSpacing="0.1"
+                    android:text="@string/current_project"
+                    android:textColor="@color/text_secondary"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+
+                <ImageButton
+                    android:id="@+id/btnEditProject"
+                    android:layout_width="38dp"
+                    android:layout_height="38dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/edit_live"
+                    android:src="@drawable/ic_edit"
+                    app:tint="@color/primary_purple" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/projectName"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:text="@string/no_project_selected"
+                android:textColor="@color/text_primary"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                tools:text="My Music Live #01" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/projectThumb"
+                    android:layout_width="92dp"
+                    android:layout_height="52dp"
+                    android:background="@color/card_graphite_high"
+                    android:importantForAccessibility="no"
+                    android:scaleType="centerCrop" />
+
+                <LinearLayout
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="12dp"
+                    android:layout_weight="1"
+                    android:orientation="vertical">
+
+                    <TextView
+                        android:id="@+id/projectVideoSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:ellipsize="end"
+                        android:maxLines="2"
+                        android:text="@string/no_project_hint"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="MyVideo.mp4 • Loop All" />
+
+                    <TextView
+                        android:id="@+id/projectDestSummary"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="3dp"
+                        android:textColor="@color/text_secondary"
+                        android:textSize="12sp"
+                        tools:text="3 destinations • 1080p 30fps 6 Mbps" />
+                </LinearLayout>
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- ================= Quick actions ================= -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
             android:orientation="horizontal">
 
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/resolutionLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            <Button
+                android:id="@+id/btnLibrary"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:hint="@string/resolution">
+                android:layout_weight="1"
+                android:text="@string/video_library"
+                android:textSize="11sp"
+                app:icon="@drawable/ic_folder_open"
+                app:iconGravity="textStart" />
 
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/resolutionDropdown"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textSize="13sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/fpsLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            <Button
+                android:id="@+id/btnMixer"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:layout_marginHorizontal="3dp"
-                android:hint="@string/fps">
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/audio_mixer_short"
+                android:textSize="11sp"
+                app:icon="@drawable/ic_mic"
+                app:iconGravity="textStart" />
 
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/fpsDropdown"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textSize="13sp" />
-            </com.google.android.material.textfield.TextInputLayout>
-
-            <com.google.android.material.textfield.TextInputLayout
-                android:id="@+id/bitrateLayout"
-                style="@style/Widget.Material3.TextInputLayout.OutlinedBox.ExposedDropdownMenu"
+            <Button
+                android:id="@+id/btnOverlays"
+                style="@style/Widget.Material3.Button.OutlinedButton"
                 android:layout_width="0dp"
-                android:layout_weight="1"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="6dp"
-                android:hint="@string/bitrate">
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/overlays"
+                android:textSize="11sp"
+                app:icon="@drawable/ic_layers"
+                app:iconGravity="textStart" />
 
-                <com.google.android.material.textfield.MaterialAutoCompleteTextView
-                    android:id="@+id/bitrateDropdown"
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:inputType="none"
-                    android:textSize="13sp" />
-            </com.google.android.material.textfield.TextInputLayout>
+            <Button
+                android:id="@+id/btnProjects"
+                style="@style/Widget.Material3.Button.OutlinedButton"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/projects"
+                android:textSize="11sp"
+                app:icon="@drawable/ic_playlist"
+                app:iconGravity="textStart" />
         </LinearLayout>
 
-        <!-- START LIVE -->
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/btnStartStop"
-            android:layout_width="match_parent"
-            android:layout_height="60dp"
-            android:layout_marginTop="16dp"
-            android:background="@drawable/bg_gradient_button"
-            app:backgroundTint="@null"
-            android:text="@string/btn_start_live"
-            android:textSize="17sp"
-            android:textStyle="bold"
-            android:textColor="#FFFFFF"
-            app:cornerRadius="18dp" />
+        <!-- ================= Recent projects ================= -->
+        <TextView
+            style="@style/HomeSectionLabel"
+            android:text="@string/recent_live_projects" />
 
-        <!-- Quick controls -->
-        <LinearLayout
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recentProjects"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
+            android:nestedScrollingEnabled="false"
+            android:overScrollMode="never"
+            tools:itemCount="3" />
+
+        <Button
+            android:id="@+id/btnNewProject"
+            style="@style/Widget.Material3.Button.TonalButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/create_project"
+            app:icon="@drawable/ic_add" />
+
+        <!-- ================= Start / stop ================= -->
+        <Button
+            android:id="@+id/btnStartStop"
+            android:layout_width="match_parent"
+            android:layout_height="56dp"
+            android:layout_marginTop="16dp"
             android:layout_marginBottom="8dp"
-            android:orientation="horizontal">
+            android:background="@drawable/bg_gradient_button"
+            android:text="@string/start_live"
+            android:textColor="@color/text_primary"
+            android:textSize="16sp"
+            android:textStyle="bold"
+            app:backgroundTint="@null" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnSwitchCamera"
-                style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/btn_camera"
-                android:textSize="12sp"
-                app:icon="@drawable/ic_camera_switch" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnMic"
-                style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/btn_mic"
-                android:textSize="12sp"
-                app:icon="@drawable/ic_mic_off" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnFlash"
-                style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/btn_flash"
-                android:textSize="12sp"
-                app:icon="@drawable/ic_flash_off" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/btnLibraryBottom"
-                style="@style/Widget.Material3.Button.TextButton.Icon"
-                android:layout_width="0dp"
-                android:layout_weight="1"
-                android:layout_height="wrap_content"
-                android:text="@string/library"
-                android:textSize="12sp"
-                app:icon="@drawable/ic_video_library" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/readyHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:gravity="center"
+            android:textColor="@color/text_secondary"
+            android:textSize="11sp"
+            android:visibility="gone"
+            tools:text="Ready • 1080p 30fps • 2 destinations • Direct"
+            tools:visibility="visible" />
     </LinearLayout>
 </ScrollView>

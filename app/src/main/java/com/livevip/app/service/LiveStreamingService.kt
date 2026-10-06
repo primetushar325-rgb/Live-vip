@@ -6,10 +6,12 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
 import androidx.core.app.NotificationCompat
+import androidx.core.content.ContextCompat
 import com.livevip.app.LiveVipApplication
 import com.livevip.app.R
 import com.livevip.app.streaming.LiveStreamingManager
@@ -24,9 +26,15 @@ import java.util.Locale
  *
  *   LIVE VIP — Streaming live  [duration, connection status, Stop action]
  *
- * The service never owns streaming logic — it only reflects the state
- * of [LiveStreamingManager] and guarantees foreground priority.
- * It is started when a stream starts and fully released when it stops.
+ * OWNERSHIP RULE (unchanged from v1): the service never owns streaming logic —
+ * it reflects the state of [LiveStreamingManager] and guarantees foreground
+ * priority. Activity destruction/recreation can never destroy the stream;
+ * the stream is stopped ONLY by explicit user action.
+ *
+ * Android 14+ correctness: the foreground service type is selected at start
+ * time based on what the broadcast actually uses (mediaPlayback for VIDEO
+ * mode, camera|microphone for CAMERA mode), so a video-only broadcast does
+ * not require the camera permission to stay alive.
  */
 class LiveStreamingService : Service(), LiveStreamingManager.Listener {
 
@@ -38,7 +46,7 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> {
-                LiveStreamingManager.stopStream()
+                LiveStreamingManager.stopBroadcast()
                 stopForegroundCompat()
                 stopSelf()
                 return START_NOT_STICKY
@@ -85,15 +93,41 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
 
     private fun startAsForeground() {
         val notification = buildNotification()
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-            startForeground(
-                NOTIFICATION_ID,
-                notification,
-                ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA or
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
-            )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+            startForeground(NOTIFICATION_ID, notification, foregroundServiceTypes())
         } else {
             startForeground(NOTIFICATION_ID, notification)
+        }
+    }
+
+    /**
+     * Android 14: FGS type must match actual usage AND declared manifest types.
+     * VIDEO mode = mediaPlayback (no camera permission needed),
+     * CAMERA mode = camera|microphone.
+     */
+    private fun foregroundServiceTypes(): Int {
+        val cameraGranted = ContextCompat.checkSelfPermission(
+            this, android.Manifest.permission.CAMERA
+        ) == PackageManager.PERMISSION_GRANTED
+        val micGranted = ContextCompat.checkSelfPermission(
+            this, android.Manifest.permission.RECORD_AUDIO
+        ) == PackageManager.PERMISSION_GRANTED
+        return when (LiveStreamingManager.mode) {
+            LiveStreamingManager.Mode.CAMERA -> {
+                var types = 0
+                if (cameraGranted) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_CAMERA
+                if (micGranted) types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                if (types == 0) types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                types
+            }
+
+            LiveStreamingManager.Mode.VIDEO -> {
+                var types = ServiceInfo.FOREGROUND_SERVICE_TYPE_MEDIA_PLAYBACK
+                if (micGranted && LiveStreamingManager.micEnabled) {
+                    types = types or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE
+                }
+                types
+            }
         }
     }
 
@@ -125,9 +159,12 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
                     formatDuration(lastStats.durationSec),
                     connection
                 )
+                val dest = if (lastStats.destinationsTotal > 1) {
+                    " • ${lastStats.destinationsLive}/${lastStats.destinationsTotal} dest"
+                } else ""
                 if (lastStats.bitrateKbps > 0) {
-                    "$base • ${lastStats.bitrateKbps} kbps • ${lastStats.fps} FPS"
-                } else base
+                    "$base$dest • ${lastStats.bitrateKbps} kbps • ${lastStats.fps} FPS"
+                } else "$base$dest"
             }
 
             StreamState.CONNECTING -> getString(R.string.state_connecting)

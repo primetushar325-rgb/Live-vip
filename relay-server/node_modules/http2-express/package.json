@@ -1,0 +1,46 @@
+{
+  "name": "http2-express",
+  "type": "commonjs",
+  "sideEffects": false,
+  "description": "HTTP/2 support for Express",
+  "version": "1.1.1",
+  "author": "Mark Jovis",
+  "contributors": [
+    "grainrigi"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "express",
+    "http2",
+    "https",
+    "push",
+    "support",
+    "compatibility",
+    "api",
+    "server"
+  ],
+  "main": "src/index.js",
+  "files": ["src/"],
+  "scripts": {
+    "createTypeFiles": "npx -p typescript tsc src/*.js --declaration --allowJs --emitDeclarationOnly --outDir types"
+  },
+    "peerDependencies": {
+    "express": ">=4.0.0"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "eslint": "^10.5.0",
+    "globals": "^17.6.0"
+  },
+  "engines": {
+    "node": ">= 20.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/markjovis/http2-express.git"
+  },
+  "bugs": {
+    "url": "https://github.com/markjovis/http2-express/issues"
+  },
+  "homepage": "https://github.com/markjovis/http2-express#readme"
+}

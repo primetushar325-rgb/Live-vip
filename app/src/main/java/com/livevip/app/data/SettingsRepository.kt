@@ -116,6 +116,16 @@ class SettingsRepository private constructor(context: Context) {
         get() = prefs.getLong(KEY_SELECTED_VIDEO, 0L)
         set(value) = prefs.edit().putLong(KEY_SELECTED_VIDEO, value).apply()
 
+    /** Current project id for the project-based home (0 = none selected). */
+    var currentProjectId: Long
+        get() = prefs.getLong(KEY_CURRENT_PROJECT, 0L)
+        set(value) = prefs.edit().putLong(KEY_CURRENT_PROJECT, value).apply()
+
+    /** Show the floating LIVE bubble when the app goes to background. */
+    var floatingBubbleEnabled: Boolean
+        get() = prefs.getBoolean(KEY_FLOATING_BUBBLE, true)
+        set(value) = prefs.edit().putBoolean(KEY_FLOATING_BUBBLE, value).apply()
+
     /** Last used mode: 0 = VIDEO (default), 1 = CAMERA. */
     var lastMode: Int
         get() = prefs.getInt(KEY_LAST_MODE, 0)
@@ -156,6 +166,8 @@ class SettingsRepository private constructor(context: Context) {
         private const val KEY_MAX_RECONNECT = "max_reconnect"
         private const val KEY_PLATFORM = "platform_index"
         private const val KEY_SELECTED_VIDEO = "selected_video_id"
+        private const val KEY_CURRENT_PROJECT = "current_project_id"
+        private const val KEY_FLOATING_BUBBLE = "floating_bubble_enabled"
         private const val KEY_LAST_MODE = "last_mode"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_DEBUG_LOGGING = "debug_logging"

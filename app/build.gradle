@@ -68,4 +68,9 @@ dependencies {
     // Maintained streaming engine: camera capture, HW H.264/AAC encoding,
     // FLV muxing and RTMP/RTMPS client (pedroSG94 RootEncoder).
     implementation 'com.github.pedroSG94.RootEncoder:library:2.8.1'
+
+    // Unit tests (pure JVM — no device needed)
+    testImplementation 'junit:junit:4.13.2'
+    // Real org.json on the JVM so OverlayConfig JSON round-trips are testable
+    testImplementation 'org.json:json:20240303'
 }

@@ -5,6 +5,7 @@ import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.os.Build
 import androidx.appcompat.app.AppCompatDelegate
+import com.livevip.app.data.LegacyMigrator
 import com.livevip.app.data.SettingsRepository
 
 /**
@@ -18,6 +19,14 @@ class LiveVipApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+
+        // One-time v1 → project-system migration (guarded by a prefs flag;
+        // no-op for fresh installs and already-migrated devices).
+        try {
+            LegacyMigrator.migrateIfNeeded(this)
+        } catch (t: Throwable) {
+            // Migration is best-effort copy-only: legacy data stays intact.
+        }
 
         // Lightweight: apply stored theme preference (no I/O beyond prefs).
         when (SettingsRepository.get(this).themeMode) {

@@ -152,4 +152,183 @@
     <string name="stop_live_title">Stop Live?</string>
     <string name="stop_live_message">Your current live stream will end.</string>
     <string name="btn_stop_live_short">Stop Live</string>
+
+    <!-- ============ PART 1: Broadcasting Studio additions ============ -->
+
+    <!-- Video-first home -->
+    <string name="source_video_live">VIDEO LIVE</string>
+    <string name="source_camera">CAMERA</string>
+    <string name="current_project">CURRENT PROJECT</string>
+    <string name="no_project_selected">No project selected</string>
+    <string name="no_project_hint">Create a live project or pick one below</string>
+    <string name="create_project">+ NEW LIVE</string>
+    <string name="edit_live">EDIT LIVE</string>
+    <string name="start_live">START LIVE</string>
+    <string name="my_live_projects">MY LIVE PROJECTS</string>
+    <string name="recent_live_projects">RECENT LIVE PROJECTS</string>
+    <string name="video_library">VIDEO LIBRARY</string>
+    <string name="audio_mixer_short">AUDIO</string>
+    <string name="overlays">OVERLAYS</string>
+    <string name="scenes">SCENES</string>
+    <string name="chat">CHAT</string>
+    <string name="analytics">ANALYTICS</string>
+    <string name="network_check">NETWORK CHECK</string>
+    <string name="ready">READY</string>
+
+    <!-- Battery / background safety -->
+    <string name="battery_warning_title">Background streaming risk</string>
+    <string name="battery_warning_text">Background streaming may be stopped by your phone\'s battery optimization.</string>
+    <string name="fix_now">FIX NOW</string>
+    <string name="battery_fix_title">Keep Live VIP alive in the background</string>
+
+    <!-- Projects -->
+    <string name="project_editor_new">NEW LIVE PROJECT</string>
+    <string name="project_editor_edit">EDIT LIVE PROJECT</string>
+    <string name="project_name_hint">Project name (e.g. My Music Live #01)</string>
+    <string name="section_playlist">VIDEO / PLAYLIST</string>
+    <string name="section_destinations">STREAM DESTINATIONS</string>
+    <string name="section_metadata">LIVE METADATA</string>
+    <string name="section_quality">QUALITY</string>
+    <string name="section_audio">AUDIO</string>
+    <string name="section_overlays">OVERLAYS</string>
+    <string name="section_scenes">SCENES</string>
+    <string name="section_broadcast_mode">BROADCAST MODE</string>
+    <string name="add_destination">Add destination</string>
+    <string name="add_video_to_playlist">Add video to playlist</string>
+    <string name="destination_name_hint">Destination name (e.g. YouTube Channel A)</string>
+    <string name="stream_key_hint">Stream key (stored encrypted)</string>
+    <string name="dest_platform_label">Platform</string>
+    <string name="loop_mode_label">Playlist mode</string>
+    <string name="direct_rtmp">DIRECT RTMP — phone streams to every destination</string>
+    <string name="smart_relay">SMART RELAY — phone uploads ONE stream, relay fans out</string>
+    <string name="save_project">SAVE PROJECT</string>
+    <string name="project_saved">Project saved.</string>
+    <string name="delete_project_confirm">Delete project \"%1$s\"? Destinations and history are removed. Stream keys are wiped from secure storage.</string>
+    <string name="duplicate_project">Duplicate</string>
+    <string name="project_history">PROJECT HISTORY</string>
+    <string name="never_streamed">Never streamed</string>
+    <string name="streamed_count">%1$d streams</string>
+    <string name="last_duration_label">Last: %1$s</string>
+    <string name="loop_all_desc">Playlist repeats in order — stream never stops</string>
+    <string name="loop_one_desc">Current video repeats forever</string>
+    <string name="shuffle_desc">Random order, forever</string>
+    <string name="play_once_desc">Play list once, then end the broadcast</string>
+
+    <!-- Quality / capability -->
+    <string name="resolution_unavailable">%1$s unavailable on this device</string>
+    <string name="source_smaller">Source is smaller — would be upscaling</string>
+    <string name="keyframe_label">Keyframe: ~%1$ds (live recommended)</string>
+    <string name="rate_control_note">CBR hardware encoder (live recommended)</string>
+    <string name="custom_bitrate">Custom</string>
+
+    <!-- Live dashboard -->
+    <string name="live_dashboard">LIVE</string>
+    <string name="loop_counter_label">Loop</string>
+    <string name="destinations_label">Destinations</string>
+    <string name="destination_live">LIVE</string>
+    <string name="destination_connecting">CONNECTING</string>
+    <string name="destination_reconnecting">RECONNECTING</string>
+    <string name="destination_failed">FAILED</string>
+    <string name="destination_stopped">STOPPED</string>
+    <string name="destination_idle">IDLE</string>
+    <string name="destinations_live_format">%1$d / %2$d live</string>
+    <string name="skip_next">Next video</string>
+    <string name="skip_previous">Previous video</string>
+    <string name="now_playing">Now: %1$s (%2$d/%3$d)</string>
+    <string name="av_sync_label">A/V sync</string>
+    <string name="timeline_ok">Timeline continuous ✓</string>
+    <string name="timeline_regressed">Timestamp regression detected!</string>
+    <string name="timeline_stalled">Output stalled</string>
+    <string name="floating_bubble_setting">Floating LIVE bubble</string>
+
+    <!-- Network pre-flight -->
+    <string name="network_check_title">NETWORK CHECK</string>
+    <string name="required_upload">Required upload</string>
+    <string name="available_upload">Available upload</string>
+    <string name="safety_margin">Safety margin</string>
+    <string name="recommendation">Recommendation</string>
+    <string name="upload_unknown">Unknown — monitored live</string>
+    <string name="latency_ms">Host latency: %1$d ms</string>
+    <string name="latency_unreachable">RTMP host unreachable</string>
+    <string name="direct_good">DIRECT: GOOD</string>
+    <string name="direct_not_recommended">DIRECT: NOT RECOMMENDED — USE SMART RELAY</string>
+    <string name="start_anyway">START LIVE ANYWAY</string>
+
+    <!-- Chat / analytics (honest empty states) -->
+    <string name="chat_unavailable_title">Chat unavailable</string>
+    <string name="chat_unavailable">Analytics unavailable — Connect platform account\n\nLive chat needs an official platform API connection (YouTube Data API / OAuth). This will be enabled when platform accounts are connected. No demo messages will be shown.</string>
+    <string name="analytics_unavailable_title">Analytics unavailable</string>
+    <string name="analytics_unavailable">Analytics unavailable — Connect platform account\n\nReal viewers/likes/chat require official platform APIs with your connected account. Live VIP never invents statistics.</string>
+
+    <!-- Relay -->
+    <string name="relay_settings_title">SMART RELAY SERVER</string>
+    <string name="relay_api_url_hint">Relay API URL (https://…)</string>
+    <string name="relay_token_hint">Relay token</string>
+    <string name="relay_test">Test connection</string>
+    <string name="relay_ok">Relay reachable ✓</string>
+    <string name="relay_unavailable">Relay unreachable: %1$s</string>
+    <string name="relay_docs_hint">Deploy your own relay from the relay-server/ folder — one phone stream, unlimited destinations.</string>
+
+    <!-- Overlays -->
+    <string name="add_overlay">Add overlay</string>
+    <string name="overlay_text_hint">Overlay text</string>
+    <string name="overlay_secondary_hint">Subtitle (lower third)</string>
+    <string name="overlay_position_hint">Position X/Y (0–100)</string>
+    <string name="overlay_size_hint">Size %</string>
+    <string name="overlay_applied_live">Overlay applied — stream continues</string>
+    <string name="no_overlays">No overlays yet. Text, logo, lower third, clock, countdown, scrolling text and border are composited into the encoded stream.</string>
+    <string name="add_scene">Add scene</string>
+    <string name="scene_name_hint">Scene name (e.g. Video + Logo)</string>
+    <string name="no_scenes">Scenes are saved overlay sets — switch during live without touching the stream.</string>
+    <string name="scene_default_full">Full Video</string>
+
+    <!-- Library -->
+    <string name="add_to_playlist">Add to playlist</string>
+    <string name="choose_project">Choose project</string>
+    <string name="preview_video">Preview</string>
+    <string name="details">Details</string>
+    <string name="info_codec">Codecs: %1$s</string>
+    <string name="empty_library">No videos yet. Import your first video to start building live projects.</string>
+    <string name="import_video">Import video</string>
+
+    <!-- Playlist editor -->
+    <string name="playlist_empty">Playlist is empty — add videos from the library.</string>
+    <string name="audio_format_mismatch">Audio formats differ (sample rate / channels) — all playlist videos must share the same audio format for one continuous encoder.</string>
+
+    <!-- Misc -->
+    <string name="open_dashboard">Open dashboard</string>
+    <string name="stop_live_action">STOP LIVE</string>
+    <string name="bubble_close_hint">Closing the bubble never stops the live stream.</string>
+    <string name="projects">PROJECTS</string>
+    <string name="hint_select_videos">Select videos</string>
+
+    <string name="settings">Settings</string>
+    <string name="switch_camera">Switch camera</string>
+    <string name="flash">Flash</string>
+    <string name="more_options">More options</string>
+    <string name="select">Select</string>
+    <string name="arrow_back">Back</string>
+
+    <string name="source_label">SOURCE</string>
+    <string name="live_title_hint">Live title (shown on platform where supported)</string>
+    <string name="live_description_hint">Description</string>
+    <string name="resolution_label">Resolution</string>
+    <string name="fps_label">FPS</string>
+    <string name="bitrate_label">Video bitrate</string>
+    <string name="echo_cancellation">Echo cancellation (microphone)</string>
+    <string name="noise_suppression">Noise suppression (microphone)</string>
+
+    <string name="rename_video">Rename video</string>
+    <string name="rename">Rename</string>
+    <string name="selected_video_format">Selected: %1$s</string>
+    <string name="added_to_playlist">Added to playlist: %1$s</string>
+
+    <string name="rtmp_url_hint">RTMP/RTMPS URL</string>
+    <string name="edit">Edit</string>
+    <string name="project_name_required">Enter a project name.</string>
+
+    <string name="quick_live_destination">QUICK LIVE DESTINATION (SINGLE)</string>
+    <string name="quick_live_hint">Used when no project is selected — the classic single-destination stream. Key is stored encrypted.</string>
+
+    <string name="overlay_permission_needed">Allow "Display over other apps" so the live bubble can appear when you leave the app.</string>
 </resources>

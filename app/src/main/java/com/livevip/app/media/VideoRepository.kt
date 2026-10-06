@@ -6,7 +6,11 @@ import android.net.Uri
 import org.json.JSONArray
 import org.json.JSONObject
 
-/** A video in the user's library — reference based, never duplicated. */
+/**
+ * A video in the user's library — reference based, never duplicated.
+ * The content URI is persisted (with persistable permission when the picker
+ * grants it); the original file is NEVER copied.
+ */
 data class VideoItem(
     val id: Long,
     val uri: String,
@@ -18,15 +22,45 @@ data class VideoItem(
     val hasAudio: Boolean,
     val sampleRate: Int,
     val channels: Int,
-    val sizeBytes: Long
+    val sizeBytes: Long,
+    val rotation: Int = 0,
+    val videoCodec: String = "",
+    val audioCodec: String = ""
 ) {
     fun uriParsed(): Uri = Uri.parse(uri)
 
+    /** Display height accounting for rotation metadata. */
+    val displayHeight: Int
+        get() = if (rotation == 90 || rotation == 270) width else height
+
+    val displayWidth: Int
+        get() = if (rotation == 90 || rotation == 270) height else width
+
+    fun resolutionLabel(): String = "${displayWidth}×${displayHeight}"
+
+    fun codecLabel(): String {
+        val v = codecShort(videoCodec, "H.264")
+        return if (!hasAudio) "$v • no audio"
+        else "$v + ${codecShort(audioCodec, "AAC")}"
+    }
+
+    private fun codecShort(mime: String, fallback: String): String = when {
+        mime.contains("avc") || mime.contains("h264", true) -> "H.264"
+        mime.contains("hevc") || mime.contains("h265", true) -> "H.265"
+        mime.contains("vp8") -> "VP8"
+        mime.contains("vp9") -> "VP9"
+        mime.contains("av01") -> "AV1"
+        mime.contains("mp4a") || mime.contains("aac") -> "AAC"
+        mime.contains("opus") -> "Opus"
+        mime.contains("vorbis") -> "Vorbis"
+        mime.isNotEmpty() -> mime.substringAfter('/').uppercase()
+        else -> fallback
+    }
+
     fun metaLabel(): String {
-        val h = height.coerceAtLeast(1)
         val dur = durationLabel()
         val audio = if (hasAudio) "Audio ✓" else "No audio"
-        return "${h}p • $fps FPS • $dur • $audio"
+        return "${resolutionLabel()} • $fps FPS • $dur • $audio"
     }
 
     fun durationLabel(): String {
@@ -36,6 +70,12 @@ data class VideoItem(
         val ss = totalSec % 60
         return if (hh > 0) String.format("%d:%02d:%02d", hh, mm, ss)
         else String.format("%02d:%02d", mm, ss)
+    }
+
+    fun sizeLabel(): String {
+        val mb = sizeBytes / (1024.0 * 1024.0)
+        return if (mb >= 1024) String.format("%.1f GB", mb / 1024)
+        else String.format("%.1f MB", mb)
     }
 }
 
@@ -65,7 +105,10 @@ class VideoRepository private constructor(private val context: Context) {
                     hasAudio = o.optBoolean("hasAudio"),
                     sampleRate = o.optInt("sampleRate", 44100),
                     channels = o.optInt("channels", 2),
-                    sizeBytes = o.optLong("sizeBytes")
+                    sizeBytes = o.optLong("sizeBytes"),
+                    rotation = o.optInt("rotation"),
+                    videoCodec = o.optString("videoCodec"),
+                    audioCodec = o.optString("audioCodec")
                 )
             }
         } catch (_: Exception) {
@@ -95,7 +138,10 @@ class VideoRepository private constructor(private val context: Context) {
             hasAudio = info.hasAudio,
             sampleRate = info.sampleRate,
             channels = info.channels,
-            sizeBytes = info.sizeBytes
+            sizeBytes = info.sizeBytes,
+            rotation = info.rotation,
+            videoCodec = info.videoMime,
+            audioCodec = info.audioMime
         )
         val existing = all().filter { it.uri != item.uri }
         save(existing + item)
@@ -126,6 +172,9 @@ class VideoRepository private constructor(private val context: Context) {
                     .put("sampleRate", v.sampleRate)
                     .put("channels", v.channels)
                     .put("sizeBytes", v.sizeBytes)
+                    .put("rotation", v.rotation)
+                    .put("videoCodec", v.videoCodec)
+                    .put("audioCodec", v.audioCodec)
             )
         }
         prefs.edit().putString(KEY_VIDEOS, array.toString()).apply()

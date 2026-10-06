@@ -8,39 +8,56 @@ import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.provider.Settings
+import android.view.LayoutInflater
 import android.view.SurfaceHolder
 import android.view.View
-import android.widget.ArrayAdapter
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textfield.TextInputEditText
 import com.livevip.app.R
-import com.livevip.app.camera.CameraConfig
+import com.livevip.app.data.ProjectRepository
 import com.livevip.app.data.SettingsRepository
-import com.livevip.app.data.StreamProfile
-import com.livevip.app.data.StreamProfilesRepository
 import com.livevip.app.databinding.ActivityHomeBinding
+import com.livevip.app.databinding.DialogAudioMixerBinding
+import com.livevip.app.databinding.DialogNetworkCheckBinding
+import com.livevip.app.databinding.ItemDestStatusBinding
+import com.livevip.app.databinding.ItemRecentProjectBinding
+import com.livevip.app.data.Project
 import com.livevip.app.media.MediaAnalyzer
-import com.livevip.app.media.VideoItem
+import com.livevip.app.data.ThumbnailCache
 import com.livevip.app.media.VideoRepository
+import com.livevip.app.overlay.OverlayConfig
+import com.livevip.app.relay.RelaySessionClient
+import com.livevip.app.service.LiveBubbleService
 import com.livevip.app.service.LiveStreamingService
+import com.livevip.app.streaming.BroadcastMode
+import com.livevip.app.streaming.BroadcastPlan
 import com.livevip.app.streaming.LiveStreamingManager
 import com.livevip.app.streaming.LiveStreamingManager.Mode
+import com.livevip.app.streaming.NetworkMath
 import com.livevip.app.streaming.StreamConfig
-import com.livevip.app.streaming.StreamPlatform
 import com.livevip.app.streaming.StreamState
 import com.livevip.app.streaming.StreamStats
+import com.livevip.app.streaming.DestinationState
+import com.livevip.app.util.BatterySafety
 import com.livevip.app.util.NetworkMonitor
 import java.util.Locale
 import java.util.concurrent.Executors
 
 /**
- * LIVE VIP premium dashboard.
- * UI only — the broadcast pipeline lives in [LiveStreamingManager]
- * and runs under [LiveStreamingService] while live.
+ * LIVE VIP — video-first home + live dashboard.
+ *
+ * UI ONLY — the broadcast pipeline lives in [LiveStreamingManager] and runs
+ * under [LiveStreamingService] while live. Activity destruction/recreation
+ * NEVER stops a running stream; this screen re-attaches as a listener.
+ *
+ * VIDEO LIVE is the primary source; CAMERA is secondary.
  */
 class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
@@ -48,13 +65,16 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     private lateinit var settings: SettingsRepository
     private lateinit var network: NetworkMonitor
     private lateinit var videos: VideoRepository
-    private lateinit var profiles: StreamProfilesRepository
+    private lateinit var repo: ProjectRepository
+    private lateinit var thumbs: ThumbnailCache
 
     private val bgExecutor = Executors.newSingleThreadExecutor()
+    private val uiHandler = Handler(Looper.getMainLooper())
     private var surfaceReady = false
     private var pendingStartAfterPermission = false
-    private var selectedVideo: VideoItem? = null
     private var livePulse: ObjectAnimator? = null
+    private var currentProject: Project? = null
+    private var activeLevelTicker: Runnable? = null
 
     // ------------------------------------------------------------------
     // Launchers
@@ -67,23 +87,15 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
     private val cameraPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-            if (granted) {
-                refreshPreview()
-            } else {
-                showError(getString(R.string.camera_permission_denied))
-            }
+            if (granted) refreshPreview() else showError(getString(R.string.camera_permission_denied))
         }
 
     private val micPermissionLauncher =
         registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
             if (granted) {
                 LiveStreamingManager.setMicrophoneEnabled(true)
-                binding.switchMic.isChecked = true
                 updateMicUi()
-            } else {
-                binding.switchMic.isChecked = false
-                showError(getString(R.string.mic_permission_denied))
-            }
+            } else showError(getString(R.string.mic_permission_denied))
         }
 
     private val streamPermissionsLauncher =
@@ -92,11 +104,8 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 pendingStartAfterPermission = false
                 val camNeeded = LiveStreamingManager.mode == Mode.CAMERA
                 val camGranted = !camNeeded || hasPermission(Manifest.permission.CAMERA)
-                if (!camGranted) {
-                    showError(getString(R.string.camera_permission_denied))
-                } else {
-                    doStartStream()
-                }
+                if (!camGranted) showError(getString(R.string.camera_permission_denied))
+                else continueStart()
             }
         }
 
@@ -112,20 +121,15 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         settings = SettingsRepository.get(this)
         network = NetworkMonitor(this)
         videos = VideoRepository.get(this)
-        profiles = StreamProfilesRepository.get(this)
+        repo = ProjectRepository.get(this)
+        thumbs = ThumbnailCache.get(this)
 
-        LiveStreamingManager.setMode(
-            if (settings.lastMode == 1) Mode.CAMERA else Mode.VIDEO
-        )
+        com.livevip.app.streaming.CapabilityDetector.warmAsync()
 
         setupSurface()
         setupModeToggle()
-        setupInputs()
-        setupDropdowns()
-        setupProfiles()
-        setupMixer()
         setupButtons()
-        loadSelectedVideo()
+        loadCurrentProject()
         renderState(LiveStreamingManager.state, null)
     }
 
@@ -138,12 +142,11 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     override fun onResume() {
         super.onResume()
         refreshPreview()
-        updateMicUi()
-        refreshProfilesDropdown()
+        updateBatteryBanner()
+        loadCurrentProject()
     }
 
     override fun onStop() {
-        persistInputs()
         LiveStreamingManager.removeListener(this)
         network.unregister()
         if (!LiveStreamingManager.isStreaming) {
@@ -153,11 +156,26 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     }
 
     override fun onDestroy() {
+        stopLevelTicker()
         livePulse?.cancel()
         if (isFinishing && !LiveStreamingManager.isStreaming) {
             LiveStreamingManager.release()
         }
         super.onDestroy()
+    }
+
+    /**
+     * User left the app while live → optional floating bubble.
+     * The stream itself NEVER stops on navigation.
+     */
+    override fun onUserLeaveHint() {
+        super.onUserLeaveHint()
+        if (LiveStreamingManager.isStreaming &&
+            settings.floatingBubbleEnabled &&
+            Settings.canDrawOverlays(this)
+        ) {
+            LiveBubbleService.start(this)
+        }
     }
 
     // ------------------------------------------------------------------
@@ -180,22 +198,23 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         })
 
         binding.btnPlaceholderAction.setOnClickListener {
-            if (LiveStreamingManager.mode == Mode.VIDEO) {
-                openVideoPicker()
-            } else {
-                cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
-            }
+            if (LiveStreamingManager.mode == Mode.VIDEO) openVideoPicker()
+            else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
     }
 
     private fun refreshPreview() {
         if (!surfaceReady) return
+        if (LiveStreamingManager.isStreaming) return // live preview is owned by the engine
         val mode = LiveStreamingManager.mode
         when (mode) {
             Mode.VIDEO -> {
-                val video = selectedVideo
+                val video = quickLiveVideo()
                 if (video == null) {
-                    showPlaceholder(getString(R.string.no_video_selected), getString(R.string.select_video))
+                    showPlaceholder(
+                        getString(R.string.no_video_selected),
+                        getString(R.string.select_video)
+                    )
                     return
                 }
                 val error = LiveStreamingManager.startPreview(
@@ -203,10 +222,8 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 )
                 if (error == null) {
                     binding.previewPlaceholder.visibility = View.GONE
-                    showReadyBadge(video)
-                } else {
-                    showPlaceholder(error, getString(R.string.change_video))
-                }
+                    showReadyBadge("${video.resolutionLabel()} • ${video.fps} FPS • ${video.durationLabel()}")
+                } else showPlaceholder(error, getString(R.string.change_video))
             }
 
             Mode.CAMERA -> {
@@ -221,9 +238,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 if (error == null) {
                     binding.previewPlaceholder.visibility = View.GONE
                     binding.previewStatusBadge.visibility = View.GONE
-                } else {
-                    showPlaceholder(error, getString(R.string.enable_camera))
-                }
+                } else showPlaceholder(error, getString(R.string.enable_camera))
             }
         }
     }
@@ -235,17 +250,14 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.previewStatusBadge.visibility = View.GONE
     }
 
-    private fun showReadyBadge(video: VideoItem) {
+    private fun showReadyBadge(text: String) {
         if (LiveStreamingManager.isStreaming) return
         binding.previewStatusBadge.visibility = View.VISIBLE
-        binding.previewStatusBadge.text = getString(
-            R.string.video_ready_format,
-            video.height, video.fps, video.durationLabel()
-        )
+        binding.previewStatusBadge.text = text
     }
 
     // ------------------------------------------------------------------
-    // Mode toggle
+    // Mode toggle (VIDEO LIVE primary, CAMERA secondary)
     // ------------------------------------------------------------------
 
     private fun setupModeToggle() {
@@ -274,16 +286,117 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
     private fun applyModeUi() {
         val videoMode = LiveStreamingManager.mode == Mode.VIDEO
-        binding.videoCard.visibility = if (videoMode) View.VISIBLE else View.GONE
-        binding.mixerCard.visibility = if (videoMode) View.VISIBLE else View.GONE
-        binding.btnSwitchCamera.isEnabled = !videoMode
-        binding.btnFlash.isEnabled = !videoMode
-        binding.btnSwitchCamera.alpha = if (videoMode) 0.4f else 1f
-        binding.btnFlash.alpha = if (videoMode) 0.4f else 1f
+        binding.cameraControls.visibility = if (videoMode) View.GONE else View.VISIBLE
+        binding.placeholderIcon.setImageResource(
+            if (videoMode) R.drawable.ic_folder_video else R.drawable.ic_videocam
+        )
     }
 
     // ------------------------------------------------------------------
-    // Video selection / library
+    // Projects
+    // ------------------------------------------------------------------
+
+    private fun loadCurrentProject() {
+        val id = settings.currentProjectId
+        if (id == 0L) {
+            currentProject = null
+            renderProjectCard()
+        } else {
+            repo.async({ it.projectBundle(id) }) { bundle ->
+                if (isFinishing || isDestroyed) return@async
+                currentProject = bundle?.project
+                renderProjectCard()
+            }
+        }
+        loadRecentProjects()
+    }
+
+    /** Small "RECENT PROJECTS" strip under the quick actions. */
+    private fun loadRecentProjects() {
+        repo.async({ it.recentProjects(3) }) { list ->
+            if (isFinishing || isDestroyed) return@async
+            binding.recentProjects.layoutManager =
+                LinearLayoutManager(this, LinearLayoutManager.VERTICAL, false)
+            binding.recentProjects.adapter = object :
+                androidx.recyclerview.widget.RecyclerView.Adapter<androidx.recyclerview.widget.RecyclerView.ViewHolder>() {
+
+                override fun onCreateViewHolder(
+                    parent: android.view.ViewGroup, viewType: Int
+                ): androidx.recyclerview.widget.RecyclerView.ViewHolder =
+                    object : androidx.recyclerview.widget.RecyclerView.ViewHolder(
+                        ItemRecentProjectBinding.inflate(layoutInflater, parent, false).root
+                    ) {}
+
+                override fun getItemCount(): Int = list.size
+
+                override fun onBindViewHolder(
+                    holder: androidx.recyclerview.widget.RecyclerView.ViewHolder, position: Int
+                ) {
+                    val project = list[position]
+                    val b = ItemRecentProjectBinding.bind(holder.itemView)
+                    b.recentName.text = project.name
+                    b.recentMeta.text = "• ${project.height}p ${project.fps}fps • " +
+                        "${project.broadcastMode.label}"
+                    holder.itemView.setOnClickListener {
+                        settings.currentProjectId = project.id
+                        loadCurrentProject()
+                    }
+                }
+            }
+        }
+    }
+
+    private fun renderProjectCard() {
+        val project = currentProject
+        if (project == null) {
+            binding.projectName.text = getString(R.string.no_project_selected)
+            binding.projectVideoSummary.text = getString(R.string.no_project_hint)
+            binding.projectDestSummary.text = ""
+            binding.projectThumb.setImageDrawable(null)
+            updateReadyHint()
+            return
+        }
+        binding.projectName.text = project.name
+        repo.async({ it.projectBundle(project.id) }) { bundle ->
+            if (isFinishing || isDestroyed || bundle == null) return@async
+            val playlistVideos = bundle.playlist
+                .mapNotNull { videos.byId(it.videoId) }
+            val videoSummary = when {
+                playlistVideos.isEmpty() -> getString(R.string.playlist_empty)
+                playlistVideos.size == 1 ->
+                    "${playlistVideos[0].name} • ${project.loopMode.label}"
+                else -> "${playlistVideos.size} videos • ${project.loopMode.label}"
+            }
+            binding.projectVideoSummary.text = videoSummary
+            val destCount = bundle.destinations.count { it.enabled }
+            binding.projectDestSummary.text = "$destCount destinations • " +
+                "${project.height}p ${project.fps}fps ${project.videoBitrateKbps / 1000} Mbps • " +
+                project.broadcastMode.label
+
+            val firstVideo = playlistVideos.firstOrNull()
+            if (firstVideo == null) {
+                binding.projectThumb.setImageDrawable(null)
+            } else {
+                thumbs.load(firstVideo.id, firstVideo.uri) { bmp ->
+                    if (!isFinishing && bmp != null) binding.projectThumb.setImageBitmap(bmp)
+                }
+            }
+            updateReadyHint()
+        }
+    }
+
+    private fun updateReadyHint() {
+        val project = currentProject ?: run {
+            binding.readyHint.visibility = View.GONE
+            return
+        }
+        binding.readyHint.visibility = View.VISIBLE
+        binding.readyHint.text = getString(R.string.ready) + " • ${project.height}p ${project.fps}fps" +
+            " • ${project.broadcastMode.label}"
+    }
+
+    // ------------------------------------------------------------------
+    // Video import (quick selection)
     // ------------------------------------------------------------------
 
     private fun openVideoPicker() {
@@ -311,256 +424,57 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 val item = videos.add(uri, info)
                 settings.selectedVideoId = item.id
                 LiveStreamingManager.invalidateVideoSource()
-                loadSelectedVideo()
                 refreshPreview()
             }
         }
     }
 
-    private fun loadSelectedVideo() {
-        val item = videos.byId(settings.selectedVideoId)
-        selectedVideo = item
-        if (item == null) {
-            binding.videoName.text = getString(R.string.no_video_selected)
-            binding.videoMeta.text = getString(R.string.tap_select_video_hint)
-            binding.videoThumb.setImageDrawable(null)
-            return
-        }
-        binding.videoName.text = item.name
-        binding.videoMeta.text = item.metaLabel()
-        bgExecutor.execute {
-            val thumb = MediaAnalyzer.thumbnail(this, item.uriParsed())
-            runOnUiThread {
-                if (!isFinishing && thumb != null) binding.videoThumb.setImageBitmap(thumb)
-            }
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Inputs / dropdowns
-    // ------------------------------------------------------------------
-
-    private fun setupInputs() {
-        binding.inputUrl.setText(settings.streamUrl)
-        binding.inputKey.setText(settings.streamKey)
-    }
-
-    private fun persistInputs() {
-        settings.streamUrl = binding.inputUrl.text?.toString().orEmpty()
-        settings.streamKey = binding.inputKey.text?.toString().orEmpty()
-    }
-
-    private fun setupDropdowns() {
-        val platforms = StreamPlatform.values().map { it.label }
-        binding.platformDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, platforms)
-        )
-        val savedPlatform = settings.platformIndex.coerceIn(0, platforms.size - 1)
-        binding.platformDropdown.setText(platforms[savedPlatform], false)
-        binding.platformDropdown.setOnItemClickListener { _, _, position, _ ->
-            settings.platformIndex = position
-            val platform = StreamPlatform.values()[position]
-            if (platform.baseUrl.isNotEmpty()) binding.inputUrl.setText(platform.baseUrl)
-        }
-
-        val resLabels = CameraConfig.RESOLUTIONS.map { it.label }
-        binding.resolutionDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, resLabels)
-        )
-        val currentRes = CameraConfig.RESOLUTIONS.indexOfFirst { it.height == settings.videoHeight }
-            .takeIf { it >= 0 } ?: 2
-        binding.resolutionDropdown.setText(resLabels[currentRes], false)
-        binding.resolutionDropdown.setOnItemClickListener { _, _, position, _ ->
-            val preset = CameraConfig.RESOLUTIONS[position]
-            settings.videoWidth = preset.width
-            settings.videoHeight = preset.height
-            LiveStreamingManager.invalidatePreparation()
-            refreshPreview()
-        }
-
-        val fpsLabels = CameraConfig.FPS_OPTIONS.map { "$it fps" }
-        binding.fpsDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, fpsLabels)
-        )
-        val currentFps = CameraConfig.FPS_OPTIONS.indexOf(settings.videoFps)
-            .takeIf { it >= 0 } ?: 1
-        binding.fpsDropdown.setText(fpsLabels[currentFps], false)
-        binding.fpsDropdown.setOnItemClickListener { _, _, position, _ ->
-            settings.videoFps = CameraConfig.FPS_OPTIONS[position]
-            LiveStreamingManager.invalidatePreparation()
-        }
-
-        val bitrateLabels = CameraConfig.BITRATE_OPTIONS.map { "$it kbps" }
-        binding.bitrateDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, bitrateLabels)
-        )
-        val currentBitrate = CameraConfig.BITRATE_OPTIONS.indexOf(settings.videoBitrateKbps)
-            .takeIf { it >= 0 } ?: 3
-        binding.bitrateDropdown.setText(bitrateLabels[currentBitrate], false)
-        binding.bitrateDropdown.setOnItemClickListener { _, _, position, _ ->
-            settings.videoBitrateKbps = CameraConfig.BITRATE_OPTIONS[position]
-            LiveStreamingManager.invalidatePreparation()
-        }
-    }
-
-    // ------------------------------------------------------------------
-    // Stream profiles
-    // ------------------------------------------------------------------
-
-    private fun setupProfiles() {
-        refreshProfilesDropdown()
-
-        binding.profileDropdown.setOnItemClickListener { _, _, position, _ ->
-            val all = profiles.all()
-            if (position in all.indices) applyProfile(all[position])
-        }
-
-        binding.btnSaveProfile.setOnClickListener { promptSaveProfile() }
-
-        binding.btnDeleteProfile.setOnClickListener {
-            val name = binding.profileDropdown.text?.toString().orEmpty()
-            val profile = profiles.all().firstOrNull { it.name == name }
-            if (profile == null) {
-                showError(getString(R.string.no_profile_selected))
-            } else {
-                MaterialAlertDialogBuilder(this)
-                    .setTitle(R.string.delete_profile)
-                    .setMessage(getString(R.string.delete_profile_confirm, profile.name))
-                    .setNegativeButton(android.R.string.cancel, null)
-                    .setPositiveButton(R.string.delete) { _, _ ->
-                        profiles.delete(profile.id)
-                        binding.profileDropdown.setText("", false)
-                        refreshProfilesDropdown()
-                    }
-                    .show()
-            }
-        }
-    }
-
-    private fun refreshProfilesDropdown() {
-        val names = profiles.all().map { it.name }
-        binding.profileDropdown.setAdapter(
-            ArrayAdapter(this, android.R.layout.simple_list_item_1, names)
-        )
-    }
-
-    private fun applyProfile(profile: StreamProfile) {
-        binding.inputUrl.setText(profile.url)
-        binding.inputKey.setText(profile.key)
-        settings.platformIndex = profile.platformIndex
-        settings.videoWidth = profile.width
-        settings.videoHeight = profile.height
-        settings.videoFps = profile.fps
-        settings.videoBitrateKbps = profile.bitrateKbps
-        persistInputs()
-        setupDropdowns()
-        LiveStreamingManager.invalidatePreparation()
-        Snackbar.make(
-            binding.root,
-            getString(R.string.profile_applied, profile.name),
-            Snackbar.LENGTH_SHORT
-        ).show()
-    }
-
-    private fun promptSaveProfile() {
-        persistInputs()
-        val input = TextInputEditText(this).apply {
-            hint = getString(R.string.profile_name_hint)
-            setPadding(48, 48, 48, 24)
-        }
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.save_profile)
-            .setView(input)
-            .setNegativeButton(android.R.string.cancel, null)
-            .setPositiveButton(R.string.save) { _, _ ->
-                val name = input.text?.toString()?.trim().orEmpty()
-                if (name.isEmpty()) {
-                    showError(getString(R.string.profile_name_required))
-                } else {
-                    profiles.save(
-                        StreamProfile(
-                            id = System.currentTimeMillis(),
-                            name = name,
-                            url = settings.streamUrl,
-                            key = settings.streamKey,
-                            platformIndex = settings.platformIndex,
-                            width = settings.videoWidth,
-                            height = settings.videoHeight,
-                            fps = settings.videoFps,
-                            bitrateKbps = settings.videoBitrateKbps
-                        )
-                    )
-                    refreshProfilesDropdown()
-                    binding.profileDropdown.setText(name, false)
-                    Snackbar.make(binding.root, R.string.profile_saved, Snackbar.LENGTH_SHORT)
-                        .show()
-                }
-            }
-            .show()
-    }
-
-    // ------------------------------------------------------------------
-    // Audio mixer
-    // ------------------------------------------------------------------
-
-    private fun setupMixer() {
-        binding.sliderVideoVolume.value = LiveStreamingManager.videoVolume * 100f
-        binding.sliderMicVolume.value = LiveStreamingManager.micVolume * 100f
-        binding.switchVideoAudio.isChecked = LiveStreamingManager.videoAudioEnabled
-        binding.switchMic.isChecked = LiveStreamingManager.micEnabled
-
-        binding.sliderVideoVolume.addOnChangeListener { _, value, _ ->
-            LiveStreamingManager.setVolumes(value / 100f, binding.sliderMicVolume.value / 100f)
-        }
-        binding.sliderMicVolume.addOnChangeListener { _, value, _ ->
-            LiveStreamingManager.setVolumes(binding.sliderVideoVolume.value / 100f, value / 100f)
-        }
-        binding.switchVideoAudio.setOnCheckedChangeListener { _, checked ->
-            LiveStreamingManager.setVideoAudioOn(checked)
-        }
-        binding.switchMic.setOnCheckedChangeListener { _, checked ->
-            if (checked && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
-                binding.switchMic.isChecked = false
-                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
-            } else {
-                LiveStreamingManager.setMicrophoneEnabled(checked)
-                updateMicUi()
-            }
-        }
-    }
-
-    private fun updateMicUi() {
-        val on = LiveStreamingManager.micEnabled
-        binding.btnMic.setIconResource(if (on) R.drawable.ic_mic else R.drawable.ic_mic_off)
-        if (binding.switchMic.isChecked != on) binding.switchMic.isChecked = on
-        binding.statMic.text = if (on) getString(R.string.on) else getString(R.string.off)
-    }
+    private fun quickLiveVideo() = videos.byId(settings.selectedVideoId)
 
     // ------------------------------------------------------------------
     // Buttons
     // ------------------------------------------------------------------
 
     private fun setupButtons() {
-        binding.btnStartStop.setOnClickListener {
-            val active = LiveStreamingManager.isStreaming ||
-                LiveStreamingManager.state == StreamState.CONNECTING ||
-                LiveStreamingManager.state == StreamState.RECONNECTING
-            if (active) confirmStop() else requestStartStream()
-        }
-
         binding.btnSettings.setOnClickListener {
             startActivity(Intent(this, SettingsActivity::class.java))
         }
-        binding.btnSelectVideo.setOnClickListener { openVideoPicker() }
         binding.btnLibrary.setOnClickListener { openLibrary() }
-        binding.btnLibraryBottom.setOnClickListener { openLibrary() }
+        binding.btnProjects.setOnClickListener { openProjects() }
+        binding.btnNewProject.setOnClickListener { newProject() }
+        binding.btnEditProject.setOnClickListener {
+            val project = currentProject
+            if (project == null) newProject() else editProject(project)
+        }
+        binding.btnMixer.setOnClickListener { showAudioMixer() }
+        binding.btnOverlays.setOnClickListener { showOverlayControls() }
+
+        binding.btnSkipNext.setOnClickListener { LiveStreamingManager.skipToNext() }
+        binding.btnSkipPrevious.setOnClickListener { LiveStreamingManager.skipToPrevious() }
+
+        binding.btnDashboardAudio.setOnClickListener { showAudioMixer() }
+        binding.btnDashboardOverlay.setOnClickListener { showOverlayControls() }
+        binding.btnDashboardScenes.setOnClickListener { showSceneControls() }
+        binding.btnDashboardChat.setOnClickListener {
+            showUnavailableDialog(R.string.chat_unavailable_title, R.string.chat_unavailable)
+        }
+        binding.btnDashboardAnalytics.setOnClickListener {
+            showUnavailableDialog(R.string.analytics_unavailable_title, R.string.analytics_unavailable)
+        }
+        binding.btnDashboardStop.setOnClickListener { confirmStop() }
 
         binding.btnSwitchCamera.setOnClickListener {
             if (!LiveStreamingManager.switchCamera()) {
                 showError(getString(R.string.camera_not_active))
             }
         }
-
+        binding.btnFlash.setOnClickListener {
+            when (LiveStreamingManager.toggleLantern()) {
+                null -> showError(getString(R.string.flash_unsupported))
+                true -> binding.btnFlash.setImageResource(R.drawable.ic_flash_on)
+                false -> binding.btnFlash.setImageResource(R.drawable.ic_flash_off)
+            }
+        }
         binding.btnMic.setOnClickListener {
             val newState = !LiveStreamingManager.micEnabled
             if (newState && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
@@ -571,12 +485,13 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
             }
         }
 
-        binding.btnFlash.setOnClickListener {
-            when (LiveStreamingManager.toggleLantern()) {
-                null -> showError(getString(R.string.flash_unsupported))
-                true -> binding.btnFlash.setIconResource(R.drawable.ic_flash_on)
-                false -> binding.btnFlash.setIconResource(R.drawable.ic_flash_off)
-            }
+        binding.btnFixBattery.setOnClickListener { showBatteryFix() }
+
+        binding.btnStartStop.setOnClickListener {
+            val active = LiveStreamingManager.isStreaming ||
+                LiveStreamingManager.state == StreamState.CONNECTING ||
+                LiveStreamingManager.state == StreamState.RECONNECTING
+            if (active) confirmStop() else requestStartStream()
         }
     }
 
@@ -584,66 +499,270 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         startActivity(Intent(this, VideoLibraryActivity::class.java))
     }
 
+    private fun openProjects() {
+        startActivity(Intent(this, ProjectsActivity::class.java))
+    }
+
+    private fun newProject() {
+        startActivity(
+            Intent(this, ProjectEditorActivity::class.java)
+                .putExtra(ProjectEditorActivity.EXTRA_PROJECT_ID, 0L)
+        )
+    }
+
+    private fun editProject(project: Project) {
+        startActivity(
+            Intent(this, ProjectEditorActivity::class.java)
+                .putExtra(ProjectEditorActivity.EXTRA_PROJECT_ID, project.id)
+        )
+    }
+
+    private fun updateMicUi() {
+        val on = LiveStreamingManager.micEnabled
+        binding.btnMic.setImageResource(if (on) R.drawable.ic_mic else R.drawable.ic_mic_off)
+    }
+
+    // ------------------------------------------------------------------
+    // Battery / background safety
+    // ------------------------------------------------------------------
+
+    private fun updateBatteryBanner() {
+        val warn = BatterySafety.shouldWarn(this) &&
+            !LiveStreamingManager.isStreaming
+        binding.batteryBanner.visibility = if (warn) View.VISIBLE else View.GONE
+    }
+
+    private fun showBatteryFix() {
+        val assessment = BatterySafety.assess(this)
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.battery_fix_title)
+            .setMessage(assessment.guidance)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(R.string.fix_now) { _, _ ->
+                try {
+                    startActivity(BatterySafety.exemptionIntent(this))
+                } catch (_: Throwable) {
+                    try {
+                        startActivity(BatterySafety.optimizationListIntent())
+                    } catch (_: Throwable) {
+                        showError(getString(R.string.battery_warning_text))
+                    }
+                }
+            }
+            .show()
+    }
+
     // ------------------------------------------------------------------
     // Start / stop with preflight
     // ------------------------------------------------------------------
 
     private fun requestStartStream() {
-        persistInputs()
-        val config = StreamConfig.from(settings)
-
-        // ---- Preflight checks ----
-        if (LiveStreamingManager.mode == Mode.VIDEO && selectedVideo == null) {
-            showError(getString(R.string.preflight_no_video)); return
-        }
-        if (config.url.isBlank()) {
-            showError(getString(R.string.error_url_empty)); return
-        }
-        if (!config.isValidUrl()) {
-            showError(getString(R.string.error_url_invalid)); return
-        }
         if (!network.isOnline()) {
             showError(getString(R.string.error_no_internet)); return
         }
 
+        val project = currentProject
+        if (project == null) {
+            // Legacy quick-live path (v1 behavior) when a destination exists.
+            if (settings.streamUrl.isBlank()) {
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.create_project)
+                    .setMessage(R.string.no_project_hint)
+                    .setPositiveButton(android.R.string.ok) { _, _ -> newProject() }
+                    .show()
+                return
+            }
+            if (LiveStreamingManager.mode == Mode.VIDEO && quickLiveVideo() == null) {
+                showError(getString(R.string.preflight_no_video)); return
+            }
+        }
+
         val missing = mutableListOf<String>()
-        if (LiveStreamingManager.mode == Mode.CAMERA &&
-            !hasPermission(Manifest.permission.CAMERA)
-        ) {
+        if (LiveStreamingManager.mode == Mode.CAMERA && !hasPermission(Manifest.permission.CAMERA)) {
             missing += Manifest.permission.CAMERA
         }
-        if (LiveStreamingManager.micEnabled &&
-            !hasPermission(Manifest.permission.RECORD_AUDIO)
-        ) {
+        if (LiveStreamingManager.micEnabled && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
             missing += Manifest.permission.RECORD_AUDIO
         }
-        if (Build.VERSION.SDK_INT >= 33 &&
-            !hasPermission(Manifest.permission.POST_NOTIFICATIONS)
-        ) {
+        if (Build.VERSION.SDK_INT >= 33 && !hasPermission(Manifest.permission.POST_NOTIFICATIONS)) {
             missing += Manifest.permission.POST_NOTIFICATIONS
         }
 
         if (missing.isNotEmpty()) {
             pendingStartAfterPermission = true
             streamPermissionsLauncher.launch(missing.toTypedArray())
-        } else {
-            doStartStream()
+        } else continueStart()
+    }
+
+    private fun continueStart() {
+        val project = currentProject
+        if (project == null) {
+            doLegacyStart()
+            return
+        }
+        // Build the plan on a background thread (DB + analysis + relay session).
+        binding.btnStartStop.isEnabled = false
+        bgExecutor.execute {
+            val planResult = buildPlan(project)
+            runOnUiThread {
+                binding.btnStartStop.isEnabled = true
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                val (plan, error) = planResult
+                if (plan == null) {
+                    showError(error ?: "Project is incomplete")
+                    return@runOnUiThread
+                }
+                showNetworkCheckAndStart(plan)
+            }
         }
     }
 
-    private fun doStartStream() {
+    /** v1 quick-live: single destination, single looping video. PRESERVED. */
+    private fun doLegacyStart() {
         val config = StreamConfig.from(settings)
-        val uri = selectedVideo?.uriParsed()
-        binding.btnStartStop.isEnabled = false
+        if (!config.isValidUrl()) {
+            showError(getString(R.string.error_url_invalid)); return
+        }
+        val uri = quickLiveVideo()?.uriParsed()
         val error = LiveStreamingManager.startStream(
             this, config, uri,
             if (surfaceReady) binding.previewSurface else null
         )
-        binding.btnStartStop.isEnabled = true
         if (error != null) {
             showErrorDialog(getString(R.string.dialog_start_failed_title), error)
         } else {
             LiveStreamingService.start(this)
+        }
+    }
+
+    private fun buildPlan(project: Project): Pair<BroadcastPlan?, String?> {
+        val bundle = repo.projectBundle(project.id) ?: return null to "Project not found"
+        val (base, error) = repo.buildPlan(bundle)
+        if (base == null) return null to error
+
+        // Resolve playlist videos.
+        val playlistVideos = bundle.playlist.mapNotNull { videos.byId(it.videoId) }
+        if (playlistVideos.isEmpty() && base.mode == Mode.VIDEO) {
+            return null to getString(R.string.playlist_empty)
+        }
+        val first = playlistVideos.firstOrNull()
+        val sampleRate = first?.takeIf { it.hasAudio }?.sampleRate ?: project.sampleRate
+        val stereo = first?.takeIf { it.hasAudio }?.let { it.channels >= 2 } ?: project.stereo
+        val playlistMedia = playlistVideos.map {
+            com.livevip.app.streaming.PlaylistMedia(
+                id = it.id,
+                uri = it.uriParsed(),
+                displayName = it.name,
+                width = it.width,
+                height = it.height,
+                fps = it.fps,
+                durationMs = it.durationMs,
+                hasAudio = it.hasAudio,
+                sampleRate = if (it.hasAudio) it.sampleRate else sampleRate,
+                isStereo = if (it.hasAudio) it.channels >= 2 else stereo
+            )
+        }
+        val plan = base.copy(
+            playlist = playlistMedia,
+            audio = base.audio.copy(sampleRate = sampleRate, stereo = stereo),
+            overlays = project.overlays
+        )
+        val validation = plan.validate()
+        if (validation != null) return null to validation
+        return plan to null
+    }
+
+    /** Smart network check before going live (direct vs relay recommendation). */
+    private fun showNetworkCheckAndStart(plan: BroadcastPlan) {
+        val view = DialogNetworkCheckBinding.inflate(layoutInflater)
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setView(view.root)
+            .setNegativeButton(android.R.string.cancel, null)
+            .create()
+
+        val destCount = plan.activeDestinations.size
+        val available = network.estimatedUploadKbps()
+        val assessment = NetworkMath.assess(
+            plan.quality.videoBitrateKbps,
+            plan.audio.audioBitrateKbps,
+            destCount,
+            plan.broadcastMode,
+            available
+        )
+        view.netRequired.text = getString(
+            R.string.required_upload
+        ) + ": %.1f Mbps".format(
+            Locale.US,
+            assessment.requiredPhoneUploadKbps / 1000.0
+        ) + " (video + audio + overhead + 25% margin)"
+        view.netAvailable.text = getString(R.string.available_upload) + ": " +
+            (available?.let { "%.1f Mbps (OS estimate)".format(Locale.US, it / 1000.0) }
+                ?: getString(R.string.upload_unknown))
+        view.netMargin.text = getString(R.string.safety_margin) + ": " +
+            (assessment.marginKbps?.let { "%.1f Mbps".format(Locale.US, it / 1000.0) }
+                ?: "—") + " — ${assessment.status}"
+        view.netRecommendation.text = when {
+            destCount > 1 && assessment.recommendedMode == BroadcastMode.SMART_RELAY ->
+                getString(R.string.direct_not_recommended)
+            else -> getString(R.string.direct_good)
+        }
+
+        // Latency probe happens off the main thread — the dialog shows it
+        // when ready; starting is never blocked on it.
+        bgExecutor.execute {
+            val rtt = network.probeHostLatency(plan.activeDestinations.first().url)
+            runOnUiThread {
+                if (!isFinishing && !isDestroyed) {
+                    view.netLatency.text = rtt?.let { getString(R.string.latency_ms, it) }
+                        ?: getString(R.string.latency_unreachable)
+                }
+            }
+        }
+
+        view.btnStartAnyway.setOnClickListener {
+            dialog.dismiss()
+            startBroadcast(plan)
+        }
+        dialog.show()
+    }
+
+    private fun startBroadcast(plan: BroadcastPlan) {
+        binding.btnStartStop.isEnabled = false
+        bgExecutor.execute {
+            val relaySession: RelaySessionClient.Session? =
+                if (plan.broadcastMode == BroadcastMode.SMART_RELAY && plan.relay != null) {
+                    when (val r = RelaySessionClient.createSession(
+                        plan.relay.apiUrl, plan.relay.token,
+                        plan.projectName, plan.activeDestinations
+                    )) {
+                        is RelaySessionClient.Result.Error -> {
+                            runOnUiThread {
+                                binding.btnStartStop.isEnabled = true
+                                showErrorDialog(
+                                    getString(R.string.dialog_start_failed_title),
+                                    "Relay: ${r.message}"
+                                )
+                            }
+                            return@execute
+                        }
+                        is RelaySessionClient.Result.Ok -> r.value
+                    }
+                } else null
+
+            val error = LiveStreamingManager.startBroadcast(
+                this, plan,
+                if (surfaceReady) binding.previewSurface else null,
+                relaySession
+            )
+            runOnUiThread {
+                binding.btnStartStop.isEnabled = true
+                if (isFinishing || isDestroyed) return@runOnUiThread
+                if (error != null) {
+                    showErrorDialog(getString(R.string.dialog_start_failed_title), error)
+                } else {
+                    LiveStreamingService.start(this)
+                }
+            }
         }
     }
 
@@ -657,8 +776,138 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     }
 
     private fun stopStream() {
-        LiveStreamingManager.stopStream()
+        LiveStreamingManager.stopBroadcast()
         LiveStreamingService.stop(this)
+        LiveBubbleService.stop(this)
+    }
+
+    // ------------------------------------------------------------------
+    // Audio mixer (mic OFF never stops video audio)
+    // ------------------------------------------------------------------
+
+    private fun showAudioMixer() {
+        val view = DialogAudioMixerBinding.inflate(layoutInflater)
+        view.sliderVideoVolume.value = LiveStreamingManager.videoVolume * 100f
+        view.sliderMicVolume.value = LiveStreamingManager.micVolume * 100f
+        view.switchVideoAudio.isChecked = LiveStreamingManager.videoAudioEnabled
+        view.switchMic.isChecked = LiveStreamingManager.micEnabled
+
+        view.sliderVideoVolume.addOnChangeListener { _, v, _ ->
+            LiveStreamingManager.setVolumes(v / 100f, view.sliderMicVolume.value / 100f)
+        }
+        view.sliderMicVolume.addOnChangeListener { _, v, _ ->
+            LiveStreamingManager.setVolumes(view.sliderVideoVolume.value / 100f, v / 100f)
+        }
+        view.switchVideoAudio.setOnCheckedChangeListener { _, checked ->
+            LiveStreamingManager.setVideoAudioOn(checked)
+        }
+        view.switchMic.setOnCheckedChangeListener { _, checked ->
+            if (checked && !hasPermission(Manifest.permission.RECORD_AUDIO)) {
+                view.switchMic.isChecked = false
+                micPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+            } else LiveStreamingManager.setMicrophoneEnabled(checked)
+        }
+
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setView(view.root)
+            .setOnDismissListener { stopLevelTicker() }
+            .create()
+
+        view.btnMixerDone.setOnClickListener { dialog.dismiss() }
+        dialog.show()
+        stopLevelTicker()
+        val ticker = levelTicker(view)
+        activeLevelTicker = ticker
+        uiHandler.post(ticker)
+    }
+
+    private fun stopLevelTicker() {
+        activeLevelTicker?.let { uiHandler.removeCallbacks(it) }
+        activeLevelTicker = null
+    }
+
+    /** Level meters driven by REAL mixed audio RMS (not simulated). */
+    private fun levelTicker(view: DialogAudioMixerBinding) = object : Runnable {
+        override fun run() {
+            val levels = LiveStreamingManager.audioLevels()
+            if (levels != null) {
+                val (video, mic) = levels
+                view.videoLevel.layoutParams = view.videoLevel.layoutParams.apply {
+                    width = (4 + video * 44 * resources.displayMetrics.density).toInt()
+                }
+                view.micLevel.layoutParams = view.micLevel.layoutParams.apply {
+                    width = (4 + mic * 44 * resources.displayMetrics.density).toInt()
+                }
+            }
+            uiHandler.postDelayed(this, 150)
+        }
+    }
+
+    // ------------------------------------------------------------------
+    // Overlay / scene control (composited into the ENCODED stream)
+    // ------------------------------------------------------------------
+
+    private fun showOverlayControls() {
+        val project = currentProject
+        if (project == null || project.overlays.isEmpty()) {
+            Snackbar.make(
+                binding.root,
+                R.string.no_overlays,
+                Snackbar.LENGTH_LONG
+            ).show()
+            return
+        }
+        val names = project.overlays.map { "${it.type.label} — ${it.text.ifEmpty { "overlay" }}" }
+        val active = LiveStreamingManager.activeOverlayIds().toMutableSet()
+        val dialog = MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.overlays)
+            .setMultiChoiceItems(
+                names.toTypedArray(),
+                project.overlays.map { it.id in active }.toBooleanArray()
+            ) { _, which, checked ->
+                val overlay = project.overlays[which]
+                if (checked) active += overlay.id else active -= overlay.id
+                val selected = project.overlays.filter { it.id in active }
+                LiveStreamingManager.applyOverlays(selected)
+                Snackbar.make(
+                    binding.root,
+                    R.string.overlay_applied_live,
+                    Snackbar.LENGTH_SHORT
+                ).show()
+            }
+            .setPositiveButton(android.R.string.ok, null)
+            .create()
+        dialog.show()
+    }
+
+    private fun showSceneControls() {
+        val project = currentProject
+        if (project == null || project.scenes.isEmpty()) {
+            Snackbar.make(binding.root, R.string.no_scenes, Snackbar.LENGTH_LONG).show()
+            return
+        }
+        val names = project.scenes.map { it.name }.toTypedArray()
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.scenes)
+            .setItems(names) { _, which ->
+                LiveStreamingManager.applyScene(project.scenes[which], project.overlays)
+                Snackbar.make(binding.root, R.string.overlay_applied_live, Snackbar.LENGTH_SHORT)
+                    .show()
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showUnavailableDialog(titleRes: Int, messageRes: Int) {
+        val view = LayoutInflater.from(this).inflate(R.layout.dialog_live_controls, null)
+        view.findViewById<android.widget.TextView>(R.id.controlsTitle)
+            .setText(titleRes)
+        view.findViewById<android.widget.TextView>(R.id.controlsMessage)
+            .setText(messageRes)
+        MaterialAlertDialogBuilder(this)
+            .setView(view)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     // ------------------------------------------------------------------
@@ -687,6 +936,75 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 if (stats.congestion) R.color.warning_amber else R.color.success_green
             )
         )
+        binding.statDestinations.text =
+            getString(R.string.destinations_live_format, stats.destinationsLive, stats.destinationsTotal)
+
+        val info = LiveStreamingManager.playlistInfo()
+        if (info != null && LiveStreamingManager.mode == Mode.VIDEO) {
+            binding.nowPlaying.text = getString(
+                R.string.now_playing, info.currentName,
+                info.currentIndex + 1, info.itemCount
+            )
+        }
+    }
+
+    override fun onDestinationsChanged(statuses: List<LiveStreamingManager.DestinationRuntimeStatus>) {
+        if (isFinishing || isDestroyed) return
+        renderDestinations(statuses)
+    }
+
+    override fun onHealthChanged(health: LiveStreamingManager.StreamHealth) {
+        if (isFinishing || isDestroyed) return
+        val timeline = health.timeline
+        binding.statTimeline.text = when (timeline.status) {
+            com.livevip.app.streaming.TimelineGuard.Status.OK -> "✓"
+            com.livevip.app.streaming.TimelineGuard.Status.WARNING -> "!"
+            com.livevip.app.streaming.TimelineGuard.Status.CRITICAL -> "✗"
+        }
+        binding.statTimeline.setTextColor(
+            ContextCompat.getColor(
+                this,
+                when (timeline.status) {
+                    com.livevip.app.streaming.TimelineGuard.Status.OK -> R.color.success_green
+                    com.livevip.app.streaming.TimelineGuard.Status.WARNING -> R.color.warning_amber
+                    com.livevip.app.streaming.TimelineGuard.Status.CRITICAL -> R.color.error_soft_red
+                }
+            )
+        )
+    }
+
+    private fun renderDestinations(statuses: List<LiveStreamingManager.DestinationRuntimeStatus>) {
+        val container = binding.destinationList
+        container.removeAllViews()
+        val inflater = LayoutInflater.from(this)
+        statuses.forEach { status ->
+            val row = ItemDestStatusBinding.inflate(inflater, container, false)
+            row.destName.text = status.name
+            row.destState.text = when (status.state) {
+                DestinationState.LIVE -> getString(R.string.destination_live)
+                DestinationState.CONNECTING -> getString(R.string.destination_connecting)
+                DestinationState.RECONNECTING -> getString(R.string.destination_reconnecting)
+                DestinationState.FAILED -> getString(R.string.destination_failed)
+                DestinationState.STOPPED -> getString(R.string.destination_stopped)
+                DestinationState.IDLE -> getString(R.string.destination_idle)
+            }
+            val color = when (status.state) {
+                DestinationState.LIVE -> R.color.status_live
+                DestinationState.CONNECTING, DestinationState.RECONNECTING -> R.color.status_connecting
+                DestinationState.FAILED -> R.color.status_error
+                else -> R.color.status_offline
+            }
+            row.destDot.backgroundTintList = ContextCompat.getColorStateList(this, color)
+            row.destState.setTextColor(ContextCompat.getColor(this, color))
+            val detail = buildString {
+                append(status.platform)
+                if (status.bitrateKbps > 0) append(" • ${status.bitrateKbps} kbps")
+                if (status.reconnectCount > 0) append(" • ${status.reconnectCount} retries")
+                status.lastError?.let { append(" • $it") }
+            }
+            row.destDetail.text = detail
+            container.addView(row.root)
+        }
     }
 
     private fun renderState(state: StreamState, message: String?) {
@@ -699,50 +1017,38 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         }
         binding.statusDot.backgroundTintList = ContextCompat.getColorStateList(this, dotColor)
         binding.statusText.text = label
-        binding.statMode.text =
-            if (LiveStreamingManager.mode == Mode.VIDEO) getString(R.string.mode_video_short)
-            else getString(R.string.mode_camera_short)
 
         val active = state == StreamState.LIVE || state == StreamState.CONNECTING ||
             state == StreamState.RECONNECTING
 
         binding.btnStartStop.text = getString(
-            if (active) R.string.btn_stop_live else R.string.btn_start_live
+            if (active) R.string.stop_live_action else R.string.start_live
         )
         binding.btnStartStop.setBackgroundResource(
             if (active) R.drawable.bg_stop_button else R.drawable.bg_gradient_button
         )
 
         binding.liveBadge.visibility = if (state == StreamState.LIVE) View.VISIBLE else View.GONE
-        binding.statsCard.visibility =
-            if (active && settings.showStats) View.VISIBLE else View.GONE
         binding.timerText.visibility = if (active) View.VISIBLE else View.GONE
-        if (state == StreamState.LIVE) {
-            binding.previewStatusBadge.visibility = View.GONE
-            startLivePulse()
-        } else {
-            stopLivePulse()
-        }
+        binding.liveDashboard.visibility = if (active) View.VISIBLE else View.GONE
 
-        val lockInputs = active
-        binding.inputUrlLayout.isEnabled = !lockInputs
-        binding.inputKeyLayout.isEnabled = !lockInputs
-        binding.platformLayout.isEnabled = !lockInputs
-        binding.resolutionLayout.isEnabled = !lockInputs
-        binding.fpsLayout.isEnabled = !lockInputs
-        binding.bitrateLayout.isEnabled = !lockInputs
-        binding.profileLayout.isEnabled = !lockInputs
-        binding.btnSelectVideo.isEnabled = !lockInputs
+        if (state == StreamState.LIVE) startLivePulse() else stopLivePulse()
+
+        binding.modeToggle.isEnabled = !active
+        binding.btnEditProject.isEnabled = !active
+        binding.btnNewProject.isEnabled = !active
 
         if (state == StreamState.ERROR && message != null) {
             showErrorDialog(getString(R.string.dialog_stream_error_title), message)
-        } else if (message != null) {
+        } else if (message != null && state == StreamState.CONNECTING) {
             Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
         }
 
         if (state == StreamState.OFFLINE || state == StreamState.ERROR) {
             updateMicUi()
+            updateBatteryBanner()
             refreshPreview()
+            loadCurrentProject()
         }
     }
 
@@ -787,4 +1093,5 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         val s = seconds % 60
         return String.format(Locale.US, "%02d:%02d:%02d", h, m, s)
     }
+
 }

@@ -30,11 +30,17 @@ jobs:
         with:
           gradle-version: '8.9'
 
+      - name: Unit tests (pure logic)
+        shell: bash
+        run: |
+          set -o pipefail
+          gradle testDebugUnitTest --no-daemon --stacktrace 2>&1 | tee build.log
+
       - name: Build debug APK
         shell: bash
         run: |
           set -o pipefail
-          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee build.log
+          gradle assembleDebug --no-daemon --stacktrace 2>&1 | tee -a build.log
 
       - name: Build signed release APK
         shell: bash

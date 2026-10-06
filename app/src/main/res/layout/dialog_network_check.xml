@@ -1,0 +1,74 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:letterSpacing="0.1"
+        android:text="@string/network_check_title"
+        android:textColor="@color/primary_purple"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/netRequired"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        tools:text="Required upload: 6.9 Mbps (video 6.0 + audio 0.13 + overhead + margin)" />
+
+    <TextView
+        android:id="@+id/netAvailable"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="@color/text_primary"
+        android:textSize="13sp"
+        tools:text="Available upload: ~18 Mbps (Wi-Fi estimate)" />
+
+    <TextView
+        android:id="@+id/netMargin"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        tools:text="Safety margin: 11 Mbps — EXCELLENT" />
+
+    <TextView
+        android:id="@+id/netLatency"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="6dp"
+        android:textColor="@color/text_secondary"
+        android:textSize="12sp"
+        tools:text="Host latency: 42 ms" />
+
+    <TextView
+        android:id="@+id/netRecommendation"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:textColor="@color/secondary_cyan"
+        android:textSize="13sp"
+        android:textStyle="bold"
+        tools:text="DIRECT: GOOD" />
+
+    <Button
+        android:id="@+id/btnStartAnyway"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:background="@drawable/bg_gradient_button"
+        android:text="@string/start_anyway"
+        android:textColor="@color/text_primary"
+        app:backgroundTint="@null" />
+</LinearLayout>
