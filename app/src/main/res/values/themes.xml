@@ -1,8 +1,20 @@
 <resources>
     <style name="Theme.LiveVip" parent="Theme.Material3.DayNight.NoActionBar">
-        <item name="colorPrimary">@color/live_red</item>
-        <item name="colorOnPrimary">#FFFFFF</item>
-        <item name="android:statusBarColor">?attr/colorSurface</item>
-        <item name="android:navigationBarColor">?attr/colorSurface</item>
+        <item name="colorPrimary">@color/primary_purple</item>
+        <item name="colorOnPrimary">@color/text_primary</item>
+        <item name="colorPrimaryContainer">@color/primary_purple_dark</item>
+        <item name="colorOnPrimaryContainer">@color/text_primary</item>
+        <item name="colorSecondary">@color/secondary_cyan</item>
+        <item name="colorOnSecondary">#06212B</item>
+        <item name="colorError">@color/error_soft_red</item>
+        <item name="colorSurface">@color/card_graphite</item>
+        <item name="colorOnSurface">@color/text_primary</item>
+        <item name="colorSurfaceVariant">@color/card_graphite_high</item>
+        <item name="colorOnSurfaceVariant">@color/text_secondary</item>
+        <item name="colorOutline">@color/outline_subtle</item>
+        <item name="android:colorBackground">@color/bg_deep</item>
+        <item name="android:windowBackground">@color/bg_deep</item>
+        <item name="android:statusBarColor">@color/bg_deep</item>
+        <item name="android:navigationBarColor">@color/bg_deep</item>
     </style>
 </resources>

@@ -15,5 +15,7 @@ data class StreamStats(
     val durationSec: Long = 0,
     val droppedFrames: Long = 0,
     val congestion: Boolean = false,
-    val fps: Int = 0
+    val fps: Int = 0,
+    val loopCount: Int = 0,
+    val reconnects: Int = 0
 )

@@ -81,4 +81,75 @@
     <string name="setting_debug_logging">Debug logging</string>
     <string name="setting_show_stats">Show performance stats while live</string>
     <string name="setting_hw_note">Hardware H.264/AAC encoding is used automatically when the device supports it.</string>
+
+    <!-- ============ Video Loop upgrade ============ -->
+    <string name="app_title_styled">Live VIP</string>
+    <string name="section_source">SOURCE</string>
+    <string name="mode_video">🎬 Video Live</string>
+    <string name="mode_camera">📹 Camera</string>
+    <string name="mode_video_short">VIDEO</string>
+    <string name="mode_camera_short">CAMERA</string>
+    <string name="mode_locked_while_live">Stop the live stream before switching source.</string>
+
+    <string name="no_video_selected">No video selected</string>
+    <string name="select_video">📁 Select Video</string>
+    <string name="change_video">Change Video</string>
+    <string name="tap_select_video_hint">Pick a video to loop on your live stream</string>
+    <string name="video_ready_format">VIDEO READY • %1$dp • %2$d FPS • %3$s</string>
+    <string name="analyzing_video">Analyzing video…</string>
+    <string name="picker_unavailable">No file picker available on this device.</string>
+    <string name="unsupported_video_title">Unsupported video</string>
+    <string name="unsupported_video_message">This video format isn\'t directly supported on this device. Please convert it to MP4 (H.264 video + AAC audio) and try again.</string>
+
+    <string name="video_library">Video Library</string>
+    <string name="library">Library</string>
+    <string name="library_empty">Your library is empty.\nSelect a video from the home screen — only a reference is stored, files are never duplicated.</string>
+    <string name="selected_for_live">● SELECTED</string>
+    <string name="select_for_live">Select for Live</string>
+    <string name="use">Use</string>
+    <string name="more">More options</string>
+    <string name="rename">Rename</string>
+    <string name="delete">Delete</string>
+    <string name="save">Save</string>
+    <string name="video_info">Video Information</string>
+    <string name="video_selected_format">Selected for live: %1$s</string>
+    <string name="video_locked_while_live">You are live — stop the stream to change the video.</string>
+    <string name="delete_video_confirm">Remove \"%1$s\" from the library? The original file is not deleted.</string>
+    <string name="info_name">Name: %1$s</string>
+    <string name="info_resolution">Resolution: %1$d × %2$d</string>
+    <string name="info_fps">FPS: %1$d</string>
+    <string name="info_duration">Duration: %1$s</string>
+    <string name="info_audio">Audio: %1$s</string>
+    <string name="info_size">Size: %1$s</string>
+    <string name="no_audio">none</string>
+
+    <string name="audio_mixer">AUDIO MIXER</string>
+    <string name="video_audio">Video Audio</string>
+    <string name="microphone">Microphone</string>
+    <string name="mixer_hint">Mic OFF keeps the video\'s original audio streaming. Mix both with the volume sliders.</string>
+    <string name="on">ON</string>
+    <string name="off">OFF</string>
+
+    <string name="section_stream_destination">STREAM DESTINATION</string>
+    <string name="stream_profile">Stream Profile</string>
+    <string name="save_profile">Save profile</string>
+    <string name="delete_profile">Delete profile</string>
+    <string name="delete_profile_confirm">Delete profile \"%1$s\"?</string>
+    <string name="no_profile_selected">Select a profile first.</string>
+    <string name="profile_applied">Profile applied: %1$s</string>
+    <string name="profile_saved">Profile saved.</string>
+    <string name="profile_name_hint">Profile name (e.g. My YouTube)</string>
+    <string name="profile_name_required">Enter a profile name.</string>
+
+    <string name="stat_loop_label">Loop</string>
+    <string name="stat_reconnect_label">Reconnects</string>
+    <string name="stat_mic_label">Mic</string>
+    <string name="stat_mode_label">Source</string>
+    <string name="loop_number_format">#%1$d</string>
+
+    <string name="preflight_no_video">Select a video first — tap 📁 Select Video.</string>
+    <string name="dialog_start_failed_title">Could not go live</string>
+    <string name="stop_live_title">Stop Live?</string>
+    <string name="stop_live_message">Your current live stream will end.</string>
+    <string name="btn_stop_live_short">Stop Live</string>
 </resources>

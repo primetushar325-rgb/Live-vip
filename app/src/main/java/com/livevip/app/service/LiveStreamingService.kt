@@ -120,11 +120,14 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
                 val connection =
                     if (lastStats.congestion) getString(R.string.connection_poor)
                     else getString(R.string.connection_good)
-                getString(
+                val base = getString(
                     R.string.notification_live_format,
                     formatDuration(lastStats.durationSec),
                     connection
                 )
+                if (lastStats.bitrateKbps > 0) {
+                    "$base • ${lastStats.bitrateKbps} kbps • ${lastStats.fps} FPS"
+                } else base
             }
 
             StreamState.CONNECTING -> getString(R.string.state_connecting)

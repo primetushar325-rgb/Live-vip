@@ -111,6 +111,16 @@ class SettingsRepository private constructor(context: Context) {
         get() = prefs.getInt(KEY_PLATFORM, 0)
         set(value) = prefs.edit().putInt(KEY_PLATFORM, value).apply()
 
+    /** Id of the video selected for VIDEO LIVE (0 = none). */
+    var selectedVideoId: Long
+        get() = prefs.getLong(KEY_SELECTED_VIDEO, 0L)
+        set(value) = prefs.edit().putLong(KEY_SELECTED_VIDEO, value).apply()
+
+    /** Last used mode: 0 = VIDEO (default), 1 = CAMERA. */
+    var lastMode: Int
+        get() = prefs.getInt(KEY_LAST_MODE, 0)
+        set(value) = prefs.edit().putInt(KEY_LAST_MODE, value).apply()
+
     // ---------------- Appearance / Advanced ----------------
 
     var themeMode: Int
@@ -145,6 +155,8 @@ class SettingsRepository private constructor(context: Context) {
         private const val KEY_AUTO_RECONNECT = "auto_reconnect"
         private const val KEY_MAX_RECONNECT = "max_reconnect"
         private const val KEY_PLATFORM = "platform_index"
+        private const val KEY_SELECTED_VIDEO = "selected_video_id"
+        private const val KEY_LAST_MODE = "last_mode"
         private const val KEY_THEME = "theme_mode"
         private const val KEY_DEBUG_LOGGING = "debug_logging"
         private const val KEY_SHOW_STATS = "show_stats"
