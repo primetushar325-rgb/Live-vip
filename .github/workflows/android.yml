@@ -43,9 +43,28 @@ jobs:
           gradle-version: '8.11.1'
 
       - name: Run unit tests and assemble unsigned release APK
-        run: gradle clean test assembleRelease --no-daemon
+        id: build
+        continue-on-error: true
+        shell: bash
+        run: |
+          set +e
+          gradle clean test assembleRelease --no-daemon 2>&1 | tee build.log
+          exit ${PIPESTATUS[0]}
+
+      - name: Upload build log
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: live-vip-build-log
+          path: build.log
+          if-no-files-found: warn
+
+      - name: Fail when build failed
+        if: steps.build.outcome == 'failure'
+        run: exit 1
 
       - name: Upload unsigned release APK
+        if: steps.build.outcome == 'success'
         uses: actions/upload-artifact@v4
         with:
           name: live-vip-release-apk
