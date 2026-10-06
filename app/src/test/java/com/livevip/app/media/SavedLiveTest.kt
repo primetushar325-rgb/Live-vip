@@ -65,7 +65,7 @@ class SavedLiveTest {
     fun `info label carries the real detected fields`() {
         val video = SelectedVideo(
             uri = "content://x", name = "a.mp4",
-            durationMs = 3_722_000, width = 1920, height = 1080,
+            durationMs = 2_282_000, width = 1920, height = 1080,
             fps = 30, hasAudio = true
         )
         // 38:02 duration, 1920×1080, 30 FPS
