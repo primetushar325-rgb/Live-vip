@@ -94,6 +94,9 @@ object LiveStreamingManager {
     private val mainHandler = Handler(Looper.getMainLooper())
     private val listeners = CopyOnWriteArrayList<Listener>()
 
+    /** Serial executor for live source transitions (loop resync, restarts). */
+    private val transitionExecutor: ExecutorService = Executors.newSingleThreadExecutor()
+
     /** The single direct RTMP/RTMPS engine. */
     private var singleStream: RtmpStream? = null
 
@@ -610,6 +613,7 @@ object LiveStreamingManager {
         activeVideoUri = null
         activeVideoInfo = null
         appContext = null
+        transitionExecutor.shutdownNow()
     }
 
     fun invalidatePreparation() {
@@ -1016,7 +1020,7 @@ object LiveStreamingManager {
         try {
             if (mode == Mode.VIDEO) {
                 val uri = activeVideoUri ?: return
-                val fresh = MixedFileAudioSource(context, uri, loop = true)
+                val fresh = MixedFileAudioSource(context, uri, loopMode = true)
                 s.changeAudioSource(fresh) // encoder + RTMP untouched
                 mixedAudioSource = fresh
                 applyMixerState()
