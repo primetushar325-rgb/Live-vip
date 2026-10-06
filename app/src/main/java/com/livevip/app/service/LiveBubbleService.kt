@@ -51,7 +51,8 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
             updateBubble()
             if (LiveStreamingManager.isStreaming ||
                 LiveStreamingManager.state == StreamState.CONNECTING ||
-                LiveStreamingManager.state == StreamState.RECONNECTING
+                LiveStreamingManager.state == StreamState.RECONNECTING ||
+                LiveStreamingManager.state == StreamState.PUBLISHING
             ) {
                 handler.postDelayed(this, 1000)
             } else {
@@ -238,6 +239,7 @@ class LiveBubbleService : Service(), LiveStreamingManager.Listener {
         val stats = LiveStreamingManager.stats
         label?.text = when {
             LiveStreamingManager.state == StreamState.CONNECTING -> "CONNECTING"
+            LiveStreamingManager.state == StreamState.PUBLISHING -> "VERIFYING"
             LiveStreamingManager.state == StreamState.RECONNECTING -> "RECONNECTING"
             else -> String.format(Locale.US, "LIVE %02d:%02d:%02d",
                 stats.durationSec / 3600, (stats.durationSec % 3600) / 60, stats.durationSec % 60)

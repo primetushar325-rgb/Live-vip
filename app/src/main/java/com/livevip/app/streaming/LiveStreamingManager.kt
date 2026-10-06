@@ -104,7 +104,18 @@ object LiveStreamingManager {
         val memoryFreeFraction: Float = 1f,
         val thermalStatus: Int = 0,
         val networkOnline: Boolean = true,
-        val avSyncMs: Long = 0
+        val avSyncMs: Long = 0,
+        /** Per-component health line for the dashboard (real probes). */
+        val components: Components = Components()
+    )
+
+    /** Individual pipeline component states (dashboard row, Part 4). */
+    data class Components(
+        val decoder: String = "—",
+        val encoder: String = "—",
+        val muxer: String = "—",
+        val rtmps: String = "—",
+        val ingest: String = "—"
     )
 
     private const val TAG = "LiveVipStream"
@@ -207,7 +218,7 @@ object LiveStreamingManager {
     val isBroadcasting: Boolean
         get() = activePlan != null && (
             state == StreamState.LIVE || state == StreamState.CONNECTING ||
-                state == StreamState.RECONNECTING
+                state == StreamState.RECONNECTING || state == StreamState.PUBLISHING
             )
 
     // ------------------------------------------------------------------
@@ -240,6 +251,55 @@ object LiveStreamingManager {
     )
 
     // ------------------------------------------------------------------
+    // Ingest verification (false-LIVE fix, Part 4)
+    // ------------------------------------------------------------------
+
+    private val ingestSamples = mutableListOf<IngestVerifier.Sample>()
+    @Volatile private var publishStartedAt = 0L
+
+    /** Socket connected + handshake done → PUBLISHING until media verified. */
+    private fun beginIngestVerification() {
+        synchronized(ingestSamples) { ingestSamples.clear() }
+        publishStartedAt = System.currentTimeMillis()
+        setState(
+            StreamState.PUBLISHING,
+            "Streaming to server — verifying ingest…"
+        )
+    }
+
+    /** Called every stats tick while PUBLISHING. Promotes to LIVE or fails honestly. */
+    private fun verifyIngest() {
+        // The AAC encoder always runs in this engine (video audio or silence
+        // clock) — audio frames must flow for ingest to verify.
+        val audioEnabled = true
+        val sample = IngestVerifier.Sample(
+            elapsedSec = (System.currentTimeMillis() - publishStartedAt) / 1000f,
+            videoFrames = totalSentVideoFrames(),
+            audioFrames = totalSentAudioFrames(),
+            audioEnabled = audioEnabled
+        )
+        val verdict = synchronized(ingestSamples) {
+            ingestSamples += sample
+            IngestVerifier.evaluate(ingestSamples.toList())
+        }
+        when (verdict) {
+            IngestVerifier.Result.Verified -> {
+                setState(StreamState.LIVE, "Ingest verified — you are live")
+            }
+            is IngestVerifier.Result.Failed -> {
+                mainHandler.post {
+                    internalStop(StreamState.ERROR, verdict.reason)
+                }
+            }
+            IngestVerifier.Result.Pending -> Unit
+        }
+    }
+
+    /** True once media flow has been verified for this session. */
+    private fun mediaVerified(): Boolean =
+        state == StreamState.LIVE && totalSentVideoFrames() > 0
+
+    // ------------------------------------------------------------------
     // Connection callback — SINGLE engine (legacy / relay upstream)
     // ------------------------------------------------------------------
 
@@ -251,7 +311,10 @@ object LiveStreamingManager {
         override fun onConnectionSuccess() {
             reconnectAttempt = 0
             streamStartElapsed = System.currentTimeMillis()
-            setState(StreamState.LIVE, null)
+            // Socket + handshake OK — but LIVE is only claimed after the
+            // ingest is VERIFIED (sustained media flow). YouTube etc. may
+            // accept the socket while showing nothing to viewers.
+            beginIngestVerification()
             startStatsTicker()
         }
 
@@ -318,8 +381,10 @@ object LiveStreamingManager {
             runtime.state = DestinationState.LIVE
             runtime.lastError = null
             if (streamStartElapsed == 0L) streamStartElapsed = System.currentTimeMillis()
-            if (state != StreamState.LIVE) {
-                setState(StreamState.LIVE, null)
+            if (state != StreamState.LIVE && state != StreamState.PUBLISHING) {
+                // Per-socket LIVE; the global engine state waits for verified
+                // media flow (ingest verification) before claiming LIVE.
+                beginIngestVerification()
                 startStatsTicker()
             }
             notifyDestinations()
@@ -934,6 +999,18 @@ object LiveStreamingManager {
         engine.onInternalLoop()
         loopCount = engine.boundaryCount
         timelineGuard.onBoundary()
+        // AUDIO LOOP SYNC (Part 4): the video decoder restarted the file.
+        // If the audio decoder is not at the loop start too (different track
+        // lengths), restart it from 0 — audio stays aligned with video.
+        // Encoder/muxer/RTMP untouched; the mixed timeline continues.
+        // Runs on the transition executor (never the main or decoder thread).
+        transitionExecutor.execute {
+            try {
+                mixedAudioSource?.resyncToLoopStart()
+            } catch (t: Throwable) {
+                if (debugLogging) Log.w(TAG, "audio loop resync skipped: ${t.message}")
+            }
+        }
         notifyStatsSoon()
     }
 
@@ -953,6 +1030,10 @@ object LiveStreamingManager {
 
         timelineGuard.onBoundary()
         val next = engine.onItemFinished()
+        // The counter reflects the COMPLETED boundary immediately — even if
+        // the upcoming source switch fails, the dashboard must never lie
+        // with "Loop #0" while the stream actually ran through a file.
+        loopCount = engine.boundaryCount
         if (next == null) {
             // PLAY_ONCE finished the whole playlist — graceful, planned end.
             mainHandler.post {
@@ -962,7 +1043,6 @@ object LiveStreamingManager {
             return
         }
         switchToItem(context, next)
-        loopCount = engine.boundaryCount
         notifyStatsSoon()
     }
 
@@ -1591,7 +1671,8 @@ object LiveStreamingManager {
 
     private val statsTicker = object : Runnable {
         override fun run() {
-            val active = state == StreamState.LIVE || state == StreamState.RECONNECTING
+            val active = state == StreamState.LIVE || state == StreamState.RECONNECTING ||
+                state == StreamState.PUBLISHING
             if (active && stream?.isStreaming == true) {
                 tickStats()
             }
@@ -1602,6 +1683,8 @@ object LiveStreamingManager {
     }
 
     private fun tickStats() {
+        // Ingest verification runs while PUBLISHING (false-LIVE fix).
+        if (state == StreamState.PUBLISHING) verifyIngest()
         val multi = multiStream
         if (multi != null) {
             var droppedTotal = 0L
@@ -1627,7 +1710,9 @@ object LiveStreamingManager {
                 loopCount = loopCount,
                 reconnects = reconnectTotal,
                 destinationsLive = destinationRuntimes.count { it.state == DestinationState.LIVE },
-                destinationsTotal = destinationRuntimes.size
+                destinationsTotal = destinationRuntimes.size,
+                mediaVerified = mediaVerified(),
+                avSyncMs = timelineGuard.snapshot().avDriftMs
             )
         } else {
             val s = singleStream
@@ -1653,7 +1738,9 @@ object LiveStreamingManager {
                 reconnects = reconnectTotal,
                 destinationsLive = if (relayPollsEnabled) relayDestinationLiveCount else liveDestinations,
                 destinationsTotal = destinationRuntimes.size.takeIf { it > 0 }
-                    ?: if (relayPollsEnabled) relayDestinationTotal else 1
+                    ?: if (relayPollsEnabled) relayDestinationTotal else 1,
+                mediaVerified = mediaVerified(),
+                avSyncMs = timelineGuard.snapshot().avDriftMs
             )
         }
 
@@ -1683,13 +1770,51 @@ object LiveStreamingManager {
         // Relay status poll (real per-destination data from the relay).
         if (relayPollsEnabled) pollRelayStatus()
 
+        val snapshotNow = timelineGuard.snapshot()
+        val videoFramesNow = totalSentVideoFrames()
+        val audioFramesNow = totalSentAudioFrames()
+        val decoderMoving = try {
+            (videoFileSource?.getTime() ?: -1.0) >= 0 &&
+                (videoFileSource?.getTime() ?: -1.0) > lastDecoderTimeSnapshot - 0.001
+        } catch (_: Throwable) {
+            true // camera mode / no file source
+        }
+        try {
+            lastDecoderTimeSnapshot = videoFileSource?.getTime() ?: 0.0
+        } catch (_: Throwable) {
+        }
+        val encoderOk = videoFramesNow > lastVideoFramesSnapshot
+        val muxerOk = videoFramesNow > lastVideoFramesSnapshot ||
+            audioFramesNow > lastAudioFramesSnapshot
+        lastVideoFramesSnapshot = videoFramesNow
+        lastAudioFramesSnapshot = audioFramesNow
+        val socketUp = try {
+            (singleStream?.isStreaming == true) || (multiStream?.isStreaming == true)
+        } catch (_: Throwable) {
+            false
+        }
         health = StreamHealth(
-            timeline = timelineGuard.snapshot(),
+            timeline = snapshotNow,
             watchdogActions = watchdogCenter.sourceRestartCount(),
             memoryFreeFraction = watchdogCenter.probes.availableMemoryFraction(),
             thermalStatus = watchdogCenter.probes.thermalStatus(),
             networkOnline = networkOnline,
-            avSyncMs = timelineGuard.snapshot().avDriftMs
+            avSyncMs = snapshotNow.avDriftMs,
+            components = Components(
+                decoder = if (mode == Mode.CAMERA) "HEALTHY" else if (decoderMoving) "HEALTHY" else "STALLED",
+                encoder = if (encoderOk) "HEALTHY" else "STALLED",
+                muxer = if (muxerOk) "HEALTHY" else "STALLED",
+                rtmps = when {
+                    !socketUp -> "DOWN"
+                    relayPollsEnabled -> "RELAY"
+                    else -> "CONNECTED"
+                },
+                ingest = when {
+                    state == StreamState.LIVE && videoFramesNow > 0 -> "VERIFIED"
+                    state == StreamState.PUBLISHING -> "VERIFYING"
+                    else -> "—"
+                }
+            )
         )
 
         notifyStats()
@@ -1698,6 +1823,11 @@ object LiveStreamingManager {
 
     @Volatile private var relayDestinationLiveCount = 0
     @Volatile private var relayDestinationTotal = 0
+
+    // Component-health snapshots (dashboard).
+    @Volatile private var lastDecoderTimeSnapshot = 0.0
+    @Volatile private var lastVideoFramesSnapshot = 0L
+    @Volatile private var lastAudioFramesSnapshot = 0L
     private var lastRelayPollMs = 0L
 
     private fun pollRelayStatus() {
@@ -1749,17 +1879,24 @@ object LiveStreamingManager {
         val engine = playlistEngine
         transitionExecutor.execute {
             try {
+                // replaceFile creates a FRESH decoder whose loop flag defaults
+                // to false — re-apply the engine's loop mode or a single-video
+                // stream would EOS straight into a boundary after recovery.
+                val shouldLoop = playlistEngine?.usesInternalLoop ?: false
                 if (engine != null) {
                     // Re-queue the current item from its start.
                     val current = engine.current
                     videoFileSource?.replaceFile(context, current.uri)
+                    videoFileSource?.setLoopMode(shouldLoop)
                     mixedAudioSource?.replaceFile(
                         context, current.uri,
                         activeConfig?.sampleRate ?: 44100,
                         activeConfig?.stereo ?: true
                     )
+                    mixedAudioSource?.setLoopMode(shouldLoop)
                 } else {
                     videoFileSource?.replaceFile(context, uri)
+                    videoFileSource?.setLoopMode(shouldLoop)
                 }
             } catch (t: Throwable) {
                 if (debugLogging) Log.e(TAG, "video source restart failed", t)

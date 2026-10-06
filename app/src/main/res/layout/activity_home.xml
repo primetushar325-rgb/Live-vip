@@ -404,9 +404,22 @@
                 <LinearLayout style="@style/StatCell">
                     <TextView style="@style/StatLabel" android:text="@string/av_sync_label" />
                     <TextView android:id="@+id/statTimeline" style="@style/StatValue"
-                        android:textColor="@color/success_green" tools:text="✓" />
+                        android:textColor="@color/success_green" tools:text="±0ms" />
                 </LinearLayout>
             </LinearLayout>
+
+            <!-- Pipeline component health (real probes: decoder/encoder/muxer/
+                 RTMPS/ingest) -->
+            <TextView
+                android:id="@+id/healthComponents"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:ellipsize="end"
+                android:maxLines="2"
+                android:textColor="@color/text_secondary"
+                android:textSize="11sp"
+                tools:text="Decoder HEALTHY • Encoder HEALTHY • Muxer HEALTHY • RTMPS CONNECTED • Ingest VERIFIED" />
 
             <!-- Per-destination live status -->
             <TextView

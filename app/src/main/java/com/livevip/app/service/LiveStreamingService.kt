@@ -84,7 +84,7 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
 
     override fun onStatsChanged(stats: StreamStats) {
         lastStats = stats
-        if (lastState == StreamState.LIVE) updateNotification()
+        if (lastState == StreamState.LIVE || lastState == StreamState.PUBLISHING) updateNotification()
     }
 
     // ------------------------------------------------------------------
@@ -150,6 +150,7 @@ class LiveStreamingService : Service(), LiveStreamingManager.Listener {
         )
 
         val statusText = when (lastState) {
+            StreamState.PUBLISHING -> getString(R.string.state_publishing)
             StreamState.LIVE -> {
                 val connection =
                     if (lastStats.congestion) getString(R.string.connection_poor)

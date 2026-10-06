@@ -187,6 +187,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.previewSurface.holder.addCallback(object : SurfaceHolder.Callback {
             override fun surfaceCreated(holder: SurfaceHolder) {
                 surfaceReady = true
+                applyPreviewAspect()
                 refreshPreview()
             }
 
@@ -197,11 +198,36 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
                 LiveStreamingManager.stopPreview()
             }
         })
+        // ONE source of truth for composition (Part 4): the dashboard preview
+        // surface is sized to the SAME canvas aspect as the encoded output —
+        // a 9:16 canvas shows a centered portrait preview here too, so the
+        // video never appears zoomed/cropped after START LIVE.
+        (binding.previewSurface.parent as? android.view.ViewGroup)
+            ?.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ -> applyPreviewAspect() }
 
         binding.btnPlaceholderAction.setOnClickListener {
             if (LiveStreamingManager.mode == Mode.VIDEO) openVideoPicker()
             else cameraPermissionLauncher.launch(Manifest.permission.CAMERA)
         }
+    }
+
+    /** Size the preview surface to the active canvas aspect (preview == output). */
+    private fun applyPreviewAspect() {
+        val parent = binding.previewSurface.parent as? android.view.ViewGroup ?: return
+        val pw = parent.width
+        val ph = parent.height
+        if (pw <= 0 || ph <= 0) return
+        val canvas = LiveStreamingManager.activeCanvasConfig()
+            ?: currentProject?.canvas
+        val cw = canvas?.width?.toFloat() ?: 16f
+        val chh = canvas?.height?.toFloat() ?: 9f
+        val fit = com.livevip.app.overlay.CanvasPreviewMath.fit(
+            pw.toFloat(), ph.toFloat(), cw, chh
+        )
+        val lp = binding.previewSurface.layoutParams
+        lp.width = fit.first.toInt()
+        lp.height = fit.second.toInt()
+        binding.previewSurface.layoutParams = lp
     }
 
     private fun refreshPreview() {
@@ -497,7 +523,8 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.btnStartStop.setOnClickListener {
             val active = LiveStreamingManager.isStreaming ||
                 LiveStreamingManager.state == StreamState.CONNECTING ||
-                LiveStreamingManager.state == StreamState.RECONNECTING
+                LiveStreamingManager.state == StreamState.RECONNECTING ||
+                LiveStreamingManager.state == StreamState.PUBLISHING
             if (active) confirmStop() else requestStartStream()
         }
     }
@@ -936,6 +963,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
     override fun onStateChanged(state: StreamState, message: String?) {
         if (isFinishing || isDestroyed) return
         renderState(state, message)
+        applyPreviewAspect()
     }
 
     override fun onStatsChanged(stats: StreamStats) {
@@ -946,6 +974,15 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.statDropped.text = stats.droppedFrames.toString()
         binding.statLoops.text = getString(R.string.loop_number_format, stats.loopCount)
         binding.statReconnects.text = stats.reconnects.toString()
+        // REAL A/V sync (Part 4): measured video-vs-audio timeline drift.
+        val avMs = stats.avSyncMs
+        val (avText, avColor) = when {
+            kotlin.math.abs(avMs) < 80 -> "±${avMs}ms" to R.color.success_green
+            kotlin.math.abs(avMs) < 250 -> "±${avMs}ms" to R.color.warning_amber
+            else -> "±${avMs}ms" to R.color.error_soft_red
+        }
+        binding.statTimeline.text = avText
+        binding.statTimeline.setTextColor(ContextCompat.getColor(this, avColor))
         binding.statConnection.text =
             if (stats.congestion) getString(R.string.connection_poor)
             else getString(R.string.connection_good)
@@ -974,20 +1011,23 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
     override fun onHealthChanged(health: LiveStreamingManager.StreamHealth) {
         if (isFinishing || isDestroyed) return
-        val timeline = health.timeline
-        binding.statTimeline.text = when (timeline.status) {
-            com.livevip.app.streaming.TimelineGuard.Status.OK -> "✓"
-            com.livevip.app.streaming.TimelineGuard.Status.WARNING -> "!"
-            com.livevip.app.streaming.TimelineGuard.Status.CRITICAL -> "✗"
-        }
-        binding.statTimeline.setTextColor(
+        // Pipeline component health — every value comes from real probes
+        // (decoder time advancing, sent-frame deltas, socket state, verified
+        // media flow). Nothing here is cosmetic.
+        val c = health.components
+        binding.healthComponents.text = listOf(
+            "Decoder ${c.decoder}",
+            "Encoder ${c.encoder}",
+            "Muxer ${c.muxer}",
+            "RTMPS ${c.rtmps}",
+            "Ingest ${c.ingest}"
+        ).joinToString(" • ")
+        binding.healthComponents.setTextColor(
             ContextCompat.getColor(
                 this,
-                when (timeline.status) {
-                    com.livevip.app.streaming.TimelineGuard.Status.OK -> R.color.success_green
-                    com.livevip.app.streaming.TimelineGuard.Status.WARNING -> R.color.warning_amber
-                    com.livevip.app.streaming.TimelineGuard.Status.CRITICAL -> R.color.error_soft_red
-                }
+                if (listOf(c.decoder, c.encoder, c.muxer).any { it == "STALLED" } ||
+                    c.rtmps == "DOWN"
+                ) R.color.error_soft_red else R.color.text_secondary
             )
         )
     }
@@ -1030,6 +1070,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         val (dotColor, label) = when (state) {
             StreamState.OFFLINE -> R.color.status_offline to getString(R.string.state_offline)
             StreamState.CONNECTING -> R.color.status_connecting to getString(R.string.state_connecting)
+            StreamState.PUBLISHING -> R.color.status_connecting to getString(R.string.state_publishing)
             StreamState.LIVE -> R.color.status_live to getString(R.string.state_live)
             StreamState.RECONNECTING -> R.color.status_reconnecting to getString(R.string.state_reconnecting)
             StreamState.ERROR -> R.color.status_error to getString(R.string.state_error)
@@ -1038,7 +1079,7 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
         binding.statusText.text = label
 
         val active = state == StreamState.LIVE || state == StreamState.CONNECTING ||
-            state == StreamState.RECONNECTING
+            state == StreamState.RECONNECTING || state == StreamState.PUBLISHING
 
         binding.btnStartStop.text = getString(
             if (active) R.string.stop_live_action else R.string.start_live
@@ -1059,7 +1100,9 @@ class HomeActivity : AppCompatActivity(), LiveStreamingManager.Listener {
 
         if (state == StreamState.ERROR && message != null) {
             showErrorDialog(getString(R.string.dialog_stream_error_title), message)
-        } else if (message != null && state == StreamState.CONNECTING) {
+        } else if (message != null &&
+            (state == StreamState.CONNECTING || state == StreamState.PUBLISHING)
+        ) {
             Snackbar.make(binding.root, message, Snackbar.LENGTH_SHORT).show()
         }
 

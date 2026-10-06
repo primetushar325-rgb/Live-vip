@@ -420,4 +420,5 @@
     <string name="destination_saved_toast">✓ Destination Saved</string>
     <string name="no_destinations_yet">No destinations yet — you can add them later in the project.</string>
     <string name="open">OPEN</string>
+    <string name="state_publishing">STREAMING TO SERVER</string>
 </resources>

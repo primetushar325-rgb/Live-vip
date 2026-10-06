@@ -61,6 +61,10 @@ class MixedFileAudioSource(
     @Volatile private var fileHasAudio = false
     @Volatile private var currentUri: Uri = uri
 
+    /** Configured AAC format (stored for loop resync restarts). */
+    @Volatile private var configuredSampleRate = 44100
+    @Volatile private var configuredStereo = true
+
     private val decoderInterface = object : DecoderInterface {
         override fun onLoop() {
             // Audio decoder looped internally — informational only.
@@ -108,6 +112,8 @@ class MixedFileAudioSource(
         echoCanceler: Boolean,
         noiseSuppressor: Boolean
     ): Boolean {
+        configuredSampleRate = sampleRate
+        configuredStereo = isStereo
         val result = audioDecoder.initExtractor(context, currentUri)
         fileHasAudio = result
         if (result) {
@@ -233,6 +239,35 @@ class MixedFileAudioSource(
             }
         }
         return true
+    }
+
+    /**
+     * VIDEO LOOP BOUNDARY RESYNC (Part 4): the video decoder just looped.
+     * If the audio decoder's file position is not near the loop start (its
+     * track length differs from the video's), restart it from 0 so audio
+     * content stays aligned with video content. The mixed output timeline,
+     * encoder, muxer and RTMP are untouched — only this source re-seeks.
+     *
+     * Must be called from a non-decoder thread (main/transition executor).
+     */
+    fun resyncToLoopStart() {
+        if (!running || silenceEnabled || !fileHasAudio) return
+        val audioTimeSec = try {
+            audioDecoder.time
+        } catch (_: Throwable) {
+            return
+        }
+        if (!AudioLoopSync.shouldResyncAtVideoLoop(audioTimeSec)) return
+        android.util.Log.w(
+            "MixedFileAudioSource",
+            "audio resync at video loop: audio was at ${audioTimeSec.toInt()}s"
+        )
+        try {
+            replaceFile(context, currentUri, configuredSampleRate, configuredStereo)
+        } catch (_: Throwable) {
+            // Keep the current decoder — worst case the drift persists until
+            // the next boundary retry.
+        }
     }
 
     // ------------------------------------------------------------------
