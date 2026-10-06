@@ -54,8 +54,8 @@ class PcmRingBufferTest {
         buf.write(byteArrayOf(1, 2), 0, 2)
         val out = ByteArray(8)
         buf.read(out, 8)
-        assertEquals(1, out[0])
-        assertEquals(2, out[1])
+        assertEquals(1.toByte(), out[0])
+        assertEquals(2.toByte(), out[1])
         repeat(6) { assertEquals("silence at $it", 0.toByte(), out[2 + it]) }
         assertEquals(0, buf.available())
     }
