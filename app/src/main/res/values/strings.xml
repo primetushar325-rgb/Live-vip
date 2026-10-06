@@ -401,7 +401,7 @@
     <string name="selected_video">Selected Video</string>
     <string name="format_landscape">Landscape</string>
     <string name="format_shorts">Shorts</string>
-    <string name="format_square">Square</format>
+    <string name="format_square">Square</string>
     <string name="format_portrait">Portrait</string>
     <string name="create_live_project">CREATE LIVE PROJECT</string>
     <string name="project_created">✓ Live Project Created</string>
