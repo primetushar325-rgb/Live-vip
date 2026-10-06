@@ -43,7 +43,7 @@ class NetworkMathTest {
     fun `tight upload for multiple destinations recommends relay`() {
         val perStream = NetworkMath.requiredPerStreamKbps(2_500, 128)
         // Barely enough for 3x direct — relay should be recommended.
-        val a = NetworkMath.assess(2_500, 128, 3, BroadcastMode.DIRECT, perStream * 3 + 500)
+        val a = NetworkMath.assess(2_500, 128, 3, BroadcastMode.DIRECT, (perStream * 3 + 500).toLong())
         assertEquals(BroadcastMode.SMART_RELAY, a.recommendedMode)
         assertEquals(NetworkMath.Status.TIGHT, a.status)
     }
