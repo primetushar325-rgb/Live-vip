@@ -166,7 +166,6 @@
     <string name="start_live">START LIVE</string>
     <string name="my_live_projects">MY LIVE PROJECTS</string>
     <string name="recent_live_projects">RECENT LIVE PROJECTS</string>
-    <string name="video_library">VIDEO LIBRARY</string>
     <string name="audio_mixer_short">AUDIO</string>
     <string name="overlays">OVERLAYS</string>
     <string name="scenes">SCENES</string>
@@ -189,7 +188,6 @@
     <string name="section_destinations">STREAM DESTINATIONS</string>
     <string name="section_metadata">LIVE METADATA</string>
     <string name="section_quality">QUALITY</string>
-    <string name="section_audio">AUDIO</string>
     <string name="section_overlays">OVERLAYS</string>
     <string name="section_scenes">SCENES</string>
     <string name="section_broadcast_mode">BROADCAST MODE</string>
@@ -319,7 +317,6 @@
     <string name="noise_suppression">Noise suppression (microphone)</string>
 
     <string name="rename_video">Rename video</string>
-    <string name="rename">Rename</string>
     <string name="selected_video_format">Selected: %1$s</string>
     <string name="added_to_playlist">Added to playlist: %1$s</string>
 
