@@ -89,6 +89,11 @@ jobs:
           for f in dist/*.apk; do
             echo "::notice::$(basename "$f") size=$(stat -c %s "$f") sha256=$(sha256sum "$f" | cut -d' ' -f1)"
           done
+          # Strings that exist only in the current import code, to prove the APK contains it.
+          unzip -p dist/LiveVip-debug.apk 'classes*.dex' > dex-all.bin
+          for s in "Unsupported file in archive" "case-sensitive" "is not a ZIP-based" "__MACOSX"; do
+            echo "::notice::debug dex contains '$s': $(grep -c -a -F "$s" dex-all.bin || true) match(es)"
+          done
 
       - name: Upload test reports on failure
         if: failure()
