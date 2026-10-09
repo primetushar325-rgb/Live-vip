@@ -57,6 +57,7 @@ class ProjectValidatorTest {
         }
         File(dir, "manifest.json").writeText(TestFiles.manifestJson(canvasW = 4096, canvasH = 4096, layers = layers))
         for (i in 0 until 3) TestFiles.writePng(File(dir, "layers/l$i.png"), 4096, 4096)
+        TestFiles.writePng(File(dir, "preview.png"), 16, 16)
         val e = assertThrows(ProjectException::class.java) { ProjectValidator.validate(dir) }
         assertEquals(true, e.message!!.contains("GPU memory"))
     }

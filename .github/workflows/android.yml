@@ -38,14 +38,13 @@ jobs:
           echo "::notice::build-tools=$(ls "${ANDROID_HOME:-/nonexistent}/build-tools" 2>/dev/null | tr '\n' ' ')"
 
       - name: Install missing Android SDK components
-        continue-on-error: true
         run: |
-          SDKM="$(command -v sdkmanager || ls "${ANDROID_HOME}"/cmdline-tools/latest/bin/sdkmanager 2>/dev/null || true)"
-          echo "::notice::using $SDKM"
-          set -o pipefail
-          yes | "$SDKM" --licenses > sdk-licenses.log 2>&1 || true
-          "$SDKM" "platforms;android-35" "build-tools;35.0.0" > sdk-install.log 2>&1 || echo "::error::sdkmanager failed"
-          tail -n 15 sdk-install.log | while IFS= read -r line; do echo "::error::sdk: $line"; done
+          # The hosted image ships platform 35 and build-tools 35.0.0; only install if they are missing.
+          SDKM="$(command -v sdkmanager || echo "${ANDROID_HOME}/cmdline-tools/latest/bin/sdkmanager")"
+          if [ ! -d "${ANDROID_HOME}/platforms/android-35" ] || [ ! -d "${ANDROID_HOME}/build-tools/35.0.0" ]; then
+            yes | "$SDKM" --licenses > /dev/null 2>&1 || true
+            "$SDKM" "platforms;android-35" "build-tools;35.0.0"
+          fi
 
       - name: Run unit tests
         run: |
