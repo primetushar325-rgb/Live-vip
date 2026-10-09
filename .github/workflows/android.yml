@@ -85,6 +85,10 @@ jobs:
           cp app/build/outputs/apk/debug/app-debug.apk dist/LiveVip-debug.apk
           cp app/build/outputs/apk/release/app-release.apk dist/LiveVip-release.apk
           ls -la dist
+          # Fingerprints let the published release assets be checked against this exact build.
+          for f in dist/*.apk; do
+            echo "::notice::$(basename "$f") size=$(stat -c %s "$f") sha256=$(sha256sum "$f" | cut -d' ' -f1)"
+          done
 
       - name: Upload test reports on failure
         if: failure()
