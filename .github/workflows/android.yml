@@ -30,19 +30,42 @@ jobs:
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Set up Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Install Android SDK components
+      - name: Inspect preinstalled Android SDK
         run: |
-          yes | sdkmanager --licenses > /dev/null
-          sdkmanager "platforms;android-35" "build-tools;35.0.0"
+          echo "::notice::ANDROID_HOME=${ANDROID_HOME:-unset} ANDROID_SDK_ROOT=${ANDROID_SDK_ROOT:-unset}"
+          echo "::notice::sdkmanager=$(command -v sdkmanager || echo missing)"
+          echo "::notice::platforms=$(ls "${ANDROID_HOME:-/nonexistent}/platforms" 2>/dev/null | tr '\n' ' ')"
+          echo "::notice::build-tools=$(ls "${ANDROID_HOME:-/nonexistent}/build-tools" 2>/dev/null | tr '\n' ' ')"
+
+      - name: Install missing Android SDK components
+        continue-on-error: true
+        run: |
+          SDKM="$(command -v sdkmanager || ls "${ANDROID_HOME}"/cmdline-tools/latest/bin/sdkmanager 2>/dev/null || true)"
+          echo "::notice::using $SDKM"
+          set -o pipefail
+          yes | "$SDKM" --licenses > sdk-licenses.log 2>&1 || true
+          "$SDKM" "platforms;android-35" "build-tools;35.0.0" > sdk-install.log 2>&1 || echo "::error::sdkmanager failed"
+          tail -n 15 sdk-install.log | while IFS= read -r line; do echo "::error::sdk: $line"; done
 
       - name: Run unit tests
-        run: ./gradlew --no-daemon testDebugUnitTest
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee unit-tests.log
 
       - name: Build debug and release APKs
-        run: ./gradlew --no-daemon assembleDebug assembleRelease
+        run: |
+          set -o pipefail
+          ./gradlew --no-daemon assembleDebug assembleRelease 2>&1 | tee build.log
+
+      - name: Report failure details
+        if: failure()
+        run: |
+          for f in unit-tests.log build.log; do
+            [ -f "$f" ] || continue
+            grep -E "^e: |error:|FAILED|What went wrong|Exception|expected|Caused by" "$f" | head -n 40 | while IFS= read -r line; do
+              echo "::error::${f}: ${line}"
+            done
+          done
 
       - name: Collect APKs
         run: |
@@ -56,7 +79,10 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: test-reports
-          path: app/build/reports/tests/
+          path: |
+            app/build/reports/tests/
+            unit-tests.log
+            build.log
           if-no-files-found: ignore
 
       - name: Upload APKs
