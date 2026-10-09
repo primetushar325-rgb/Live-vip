@@ -98,6 +98,7 @@ object Shaders {
         uniform vec2 uRigPivot;
         uniform float uRigMode;
         uniform float uRigStrength;
+        uniform vec2 uSoftTilt;
         uniform float uTime;
         uniform float uGlowSamples;
         uniform vec2 uGlowRadius;
@@ -120,10 +121,18 @@ object Shaders {
             float f = sin(t);
             if (uRigMode > 0.5 && uRigMode < 1.5) {
                 f = sin(t + uv.y * 6.0) * 0.8 + sin(t * 0.5 + uv.x * 4.0) * 0.2;
-            } else if (uRigMode >= 1.5) {
+            } else if (uRigMode > 1.5 && uRigMode < 2.5) {
                 f = sin(t * 2.7) * 0.5 + sin(t * 4.1 + uv.x * 9.0) * 0.5;
+            } else if (uRigMode >= 2.5) {
+                // soft_body: smooth breathing, with a second harmonic so the rise and fall is not mechanical.
+                f = sin(t) * 0.85 + sin(t * 2.0 + 0.6) * 0.15;
             }
             vec2 disp = uRigDir * (uRigAmp * uRigStrength * f * w * lever);
+            if (uRigMode >= 2.5) {
+                // soft_body also lags behind device tilt. uSoftTilt is already damped and scaled on the CPU,
+                // with the sign set so the part trails the layer's parallax.
+                disp += uSoftTilt * w * lever;
+            }
             vec2 suv = uv - disp;
             vec4 c = texture2D(uTex, suv);
             if (suv.x < 0.0 || suv.x > 1.0 || suv.y < 0.0 || suv.y > 1.0) {

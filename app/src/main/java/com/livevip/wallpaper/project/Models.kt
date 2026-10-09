@@ -20,7 +20,7 @@ object ProjectLimits {
     const val MAX_PARTICLES_PER_GROUP = 300
 
     val PARTICLE_TYPES = setOf("fire", "sparks", "magic", "ambient")
-    val RIG_MODES = setOf("sway", "ripple", "flutter")
+    val RIG_MODES = setOf("sway", "ripple", "flutter", "soft_body")
     val LAYER_ROLES = setOf("body", "hair", "cloth", "cape", "sword", "accessory", "effect", "other")
     val ALLOWED_EXTENSIONS = setOf("png", "json")
 }
@@ -60,6 +60,9 @@ data class EffectSettings(
     val bgTintColor: Int = 0xFFFFFFFF.toInt(),
     val bgTintAmount: Float = 0f,           // 0..1
     val rigStrength: Float = 1f,            // 0..2 multiplier on hair/cloth/sword rig motion
+    val softBodyStrength: Float = 1f,       // 0..2 multiplier on soft_body breathing and tilt response
+    val softBodySpeed: Float = 1f,          // 0.25..3 multiplier on soft_body frequency
+    val softBodyDamping: Float = 1f,        // 0..2 multiplier on each soft_body layer's damping
 )
 
 /** Everything the user can tune for one project. */
@@ -77,6 +80,7 @@ data class RigSpec(
     val pivotY: Float = 0f,
     val dirX: Float = 1f,
     val dirY: Float = 0f,
+    val damping: Float = 0.5f,       // 0..1, soft_body only: 0 follows tilt quickly, 1 is heavy and slow
 )
 
 data class LayerSpec(

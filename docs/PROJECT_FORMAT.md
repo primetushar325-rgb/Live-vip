@@ -87,6 +87,11 @@ Use `tools/make_sample_project.py` to see a complete working example. The app al
 
 ## manifest.json
 
+This short example is the bundled Neon Warrior sample's style. The complete example with a `soft_body` body
+layer, hair and cape, masks, depth, particles and effects is in
+[`docs/examples/full-example-manifest.json`](examples/full-example-manifest.json). A unit test imports a project
+built from it, so the example stays valid.
+
 ```json
 {
   "format": "mwproj",
@@ -145,16 +150,38 @@ Use `tools/make_sample_project.py` to see a complete working example. The app al
 
 | Field | Default | Range | Meaning |
 |---|---|---|---|
-| `mode` | — (required) | `sway`, `ripple`, `flutter` | `sway`: slow pendulum. `ripple`: wave travelling through the part (capes, flags). `flutter`: faster, irregular motion (loose hair, fabric edges) |
+| `mode` | — (required) | `sway`, `ripple`, `flutter`, `soft_body` | `sway`: slow pendulum. `ripple`: wave travelling through the part (capes, flags). `flutter`: faster, irregular motion (loose hair, fabric edges). `soft_body`: slow breathing plus a light, delayed response to device tilt (chest, torso, soft clothing) |
 | `amplitude` | 0.01 | 0 – 0.08 | displacement in layer UV units (fraction of the layer size) |
-| `frequency` | 0.4 | 0 – 3 Hz | oscillation speed |
+| `frequency` | 0.4 (`soft_body`: 0.25) | 0 – 3 Hz | oscillation speed |
 | `phase` | 0 | any | start offset in radians |
 | `pivot` | [0.5, 0] | 0–1 each | UV point the motion is anchored to. Parts farther from the pivot move more |
-| `direction` | [1, 0] | any non-zero | movement direction (normalized by the app) |
+| `direction` | [1, 0] | any non-zero | movement direction (normalized by the app). For `soft_body` use [0, 1] to breathe vertically |
+| `damping` | 0.5 | 0 – 1 | `soft_body` only. 0 follows the device tilt quickly, 1 is heavy and slow. Other modes ignore it |
 
 Without a mask, a rigged layer gets a gentle whole-layer sway (35 % of the amplitude). With a mask,
 only the masked pixels move. Independent hair, cloth and sword motion therefore requires separate
 layers plus masks. The app never estimates these parts from a flattened image.
+
+#### `soft_body` in detail
+
+A `soft_body` layer responds to two things, both weighted by its mask:
+
+* **Idle breathing.** Runs even when the phone is still. Its amplitude is `amplitude`, its speed is `frequency`.
+* **Device tilt.** The layer follows the tilt through a damped lag, so it trails behind the rest of the
+  character. The lag is at most about 1.5 % of the layer size at full tilt, and `damping` sets how heavy it feels.
+
+The Effects screen (**Soft body** section) multiplies these values for the device, and the project file is
+never changed:
+
+* `softBodyStrength` (0–2): scales the breathing and the tilt response.
+* `softBodySpeed` (0.25–3): scales `frequency`.
+* `softBodyDamping` (0–2): scales each layer's `damping`, clamped to 0–1.
+
+A `soft_body` layer without a mask moves as a whole with a weak weight, like other rigged layers. Use a
+mask to move only the chest or torso.
+
+The full example below shows every part of the format together: three layers (body, hair, cape), their rigs
+and masks, depth, particles, and effects.
 
 ### Particle fields
 
@@ -169,7 +196,7 @@ layers plus masks. The app never estimates these parts from a flattened image.
 
 Colors are `#RRGGBB` strings. All keys are optional; out-of-range values are clamped.
 
-* effects: `outerGlowEnabled`, `outerGlowColor`, `outerGlowIntensity` (0–2), `outerGlowRadius` (0.002–0.06, fraction of canvas height), `innerGlowEnabled`, `innerGlowColor`, `innerGlowIntensity` (0–2), `glowPulseSpeed` (0–3 Hz), `fireAmount`, `sparksAmount`, `magicAmount`, `ambientAmount` (0–1), `bgBlur` (0–1), `bgBrightness` (−0.5–0.5), `bgContrast` (0.5–1.5), `bgSaturation` (0–2), `bgTintColor`, `bgTintAmount` (0–1), `rigStrength` (0–2)
+* effects: `outerGlowEnabled`, `outerGlowColor`, `outerGlowIntensity` (0–2), `outerGlowRadius` (0.002–0.06, fraction of canvas height), `innerGlowEnabled`, `innerGlowColor`, `innerGlowIntensity` (0–2), `glowPulseSpeed` (0–3 Hz), `fireAmount`, `sparksAmount`, `magicAmount`, `ambientAmount` (0–1), `bgBlur` (0–1), `bgBrightness` (−0.5–0.5), `bgContrast` (0.5–1.5), `bgSaturation` (0–2), `bgTintColor`, `bgTintAmount` (0–1), `rigStrength` (0–2), `softBodyStrength` (0–2), `softBodySpeed` (0.25–3), `softBodyDamping` (0–2)
 * motion: `strength` (0–2), `perspective` (0–1), `depthScale` (0–2), `smoothing` (1–20), `motionLimit` (0.05–1), `idleAmount` (0–1), `invertX`, `invertY`
 
 Users can change these values in the app. Saved changes are stored in the app's own storage
@@ -190,3 +217,9 @@ The checker collects every problem, not just the first. The import and the libra
 ## Versioning
 
 `formatVersion` changes only for incompatible changes. Version 1 is the only version supported so far.
+
+Adding the `soft_body` rig mode and its optional keys (`damping` on rigs, `softBody*` on effects) did not
+change the version. Every existing version 1 project still imports with the same results: none of its rigs
+use the new keys, and the defaults for the old modes are unchanged. A project that uses `soft_body` needs an
+app version that knows the mode. An older app reports `rig mode 'soft_body'` as an unknown value instead of
+guessing.

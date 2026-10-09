@@ -25,7 +25,7 @@ object ManifestParser {
     )
     private val BACKGROUND_KEYS = setOf("file", "depth")
     private val LAYER_KEYS = setOf("id", "role", "file", "x", "y", "depth", "mask", "glowMask", "rig")
-    private val RIG_KEYS = setOf("mode", "amplitude", "frequency", "phase", "pivot", "direction")
+    private val RIG_KEYS = setOf("mode", "amplitude", "frequency", "phase", "pivot", "direction", "damping")
     private val PARTICLE_KEYS = setOf("type", "count", "region", "color")
 
     /** All-or-nothing parse. Throws [ProjectException] with the first error. */
@@ -359,8 +359,11 @@ object ManifestParser {
             )
             return null
         }
+        // soft_body breathes slowly by default (about 15 breaths a minute); the other modes default to 0.4 Hz.
+        val defaultFrequency = if (mode == "soft_body") 0.25f else 0.4f
         val amp = optFloat(r, "amplitude", "$path.amplitude", 0.01f, 0f, 0.08f, report) ?: return null
-        val freq = optFloat(r, "frequency", "$path.frequency", 0.4f, 0f, 3f, report) ?: return null
+        val freq = optFloat(r, "frequency", "$path.frequency", defaultFrequency, 0f, 3f, report) ?: return null
+        val damping = optFloat(r, "damping", "$path.damping", 0.5f, 0f, 1f, report) ?: return null
         val phase = optFloat(r, "phase", "$path.phase", 0f, -1000f, 1000f, report) ?: return null
         val pivot = floatList(r, "pivot", "$path.pivot", floatArrayOf(0.5f, 0f), 2, report) ?: return null
         val dir = floatList(r, "direction", "$path.direction", floatArrayOf(1f, 0f), 2, report) ?: return null
@@ -373,6 +376,7 @@ object ManifestParser {
             mode = mode, amplitude = amp, frequency = freq, phase = phase,
             pivotX = pivot[0].coerceIn(0f, 1f), pivotY = pivot[1].coerceIn(0f, 1f),
             dirX = dir[0] / len, dirY = dir[1] / len,
+            damping = damping,
         )
     }
 
@@ -735,6 +739,9 @@ object ManifestParser {
                 bgSaturation = e.bgSaturation.coerceIn(0f, 2f),
                 bgTintAmount = e.bgTintAmount.coerceIn(0f, 1f),
                 rigStrength = e.rigStrength.coerceIn(0f, 2f),
+                softBodyStrength = e.softBodyStrength.coerceIn(0f, 2f),
+                softBodySpeed = e.softBodySpeed.coerceIn(0.25f, 3f),
+                softBodyDamping = e.softBodyDamping.coerceIn(0f, 2f),
             ),
         )
     }

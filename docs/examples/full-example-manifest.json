@@ -1,0 +1,82 @@
+{
+  "format": "mwproj",
+  "formatVersion": 1,
+  "name": "Full Example",
+  "canvas": { "width": 720, "height": 1280 },
+  "preview": "preview.png",
+  "background": { "file": "background.png", "depth": "depth.png" },
+  "layers": [
+    {
+      "id": "cape",
+      "role": "cape",
+      "file": "layers/cape.png",
+      "x": 230,
+      "y": 480,
+      "depth": 0.25,
+      "mask": "masks/cape.png",
+      "rig": {
+        "mode": "ripple",
+        "amplitude": 0.018,
+        "frequency": 0.35,
+        "phase": 0,
+        "pivot": [0.5, 0],
+        "direction": [1, 0]
+      }
+    },
+    {
+      "id": "body",
+      "role": "body",
+      "file": "layers/body.png",
+      "x": 210,
+      "y": 400,
+      "depth": 0.5,
+      "mask": "masks/body.png",
+      "rig": {
+        "mode": "soft_body",
+        "amplitude": 0.008,
+        "frequency": 0.25,
+        "pivot": [0.5, 0.15],
+        "direction": [0, 1],
+        "damping": 0.6
+      }
+    },
+    {
+      "id": "hair",
+      "role": "hair",
+      "file": "layers/hair.png",
+      "x": 270,
+      "y": 330,
+      "depth": 0.7,
+      "mask": "masks/hair.png",
+      "rig": {
+        "mode": "sway",
+        "amplitude": 0.012,
+        "frequency": 0.5,
+        "phase": 0.6,
+        "pivot": [0.5, 0],
+        "direction": [1, 0.15]
+      }
+    }
+  ],
+  "particles": [
+    { "type": "ambient", "count": 60, "region": [0, 0, 1, 1], "color": "#CCE6FF" },
+    { "type": "fire", "count": 70, "region": [0, 0.74, 1, 0.26], "color": "#FF7A1A" }
+  ],
+  "effects": {
+    "outerGlowEnabled": true,
+    "outerGlowColor": "#00E5FF",
+    "outerGlowIntensity": 0.8,
+    "softBodyStrength": 1.0,
+    "softBodySpeed": 1.0,
+    "softBodyDamping": 1.0
+  },
+  "motion": {
+    "strength": 1.0,
+    "perspective": 0.5,
+    "depthScale": 1.0,
+    "smoothing": 6.0,
+    "motionLimit": 0.6,
+    "idleAmount": 0.2
+  },
+  "mesh": null
+}

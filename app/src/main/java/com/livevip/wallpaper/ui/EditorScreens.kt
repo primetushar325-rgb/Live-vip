@@ -112,6 +112,14 @@ fun EffectsScreen(vm: AppViewModel, projectId: String, onBack: () -> Unit, onPre
             SliderRow("Rig motion strength", e.rigStrength, 0f..2f, { v -> vm.updateEffects { it.copy(rigStrength = v) } })
         }
 
+        Panel {
+            SectionTitle("Soft body (chest & body)")
+            Hint("Applies to layers with rig mode \"soft_body\" (use a mask for the chest or torso). The layer breathes at idle and lags behind device tilt. These sliders multiply the project's own values.")
+            SliderRow("Strength", e.softBodyStrength, 0f..2f, { v -> vm.updateEffects { it.copy(softBodyStrength = v) } })
+            SliderRow("Speed", e.softBodySpeed, 0.25f..3f, { v -> vm.updateEffects { it.copy(softBodySpeed = v) } })
+            SliderRow("Damping", e.softBodyDamping, 0f..2f, { v -> vm.updateEffects { it.copy(softBodyDamping = v) } })
+        }
+
         Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Button(onClick = { vm.save() }, enabled = dirty) { Text("Save") }
             OutlinedButton(onClick = { vm.open(projectId) }, enabled = dirty) { Text("Revert") }

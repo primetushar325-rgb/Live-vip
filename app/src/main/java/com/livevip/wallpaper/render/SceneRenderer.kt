@@ -36,7 +36,11 @@ class SceneRequest(val dir: File, val manifest: ProjectManifest)
  */
 class SceneRenderer {
 
-    private class GpuLayer(val spec: LayerSpec, val tex: Int, val mask: Int, val glow: Int)
+    private class GpuLayer(val spec: LayerSpec, val tex: Int, val mask: Int, val glow: Int) {
+        /** soft_body only: the tilt offset this layer has caught up to (lags the device tilt). */
+        var lagX = 0f
+        var lagY = 0f
+    }
     private class GpuScene(val canvasW: Int, val canvasH: Int, val bg: Int, val depth: Int, val layers: List<GpuLayer>)
     private class Cover(val offsetX: Float, val offsetY: Float, val scale: Float, val drawnW: Float, val drawnH: Float)
 
@@ -157,7 +161,13 @@ class SceneRenderer {
         if (sc != null) {
             val cover = cover(sc.canvasW, sc.canvasH)
             drawBackground(sc, cover, ox, oy, s.tuning)
-            for (layer in sc.layers) drawLayer(sc, cover, layer, ox, oy, t, s.tuning, q)
+            // Tilt that soft_body layers follow with a lag. Same sign as the parallax offset ox/oy.
+            val tiltX = Motion.limit(curX * motion.strength, motion.motionLimit) * sx
+            val tiltY = Motion.limit(curY * motion.strength, motion.motionLimit) * sy
+            for (layer in sc.layers) {
+                stepSoftBody(layer, tiltX, tiltY, dt, s.tuning.effects)
+                drawLayer(sc, cover, layer, ox, oy, t, s.tuning, q)
+            }
             drawParticles(q, s.tuning.effects, dt, ox, oy)
         }
 
@@ -281,6 +291,15 @@ class SceneRenderer {
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
     }
 
+    /** Moves a soft_body layer's lagged tilt toward the current tilt. Other layers are left alone. */
+    private fun stepSoftBody(layer: GpuLayer, tiltX: Float, tiltY: Float, dt: Float, fx: EffectSettings) {
+        val rig = layer.spec.rig ?: return
+        if (rig.mode != "soft_body") return
+        val rate = Motion.softBodyRate(rig.damping * fx.softBodyDamping)
+        layer.lagX = Motion.damp(layer.lagX, tiltX, dt, rate)
+        layer.lagY = Motion.damp(layer.lagY, tiltY, dt, rate)
+    }
+
     private fun drawLayer(
         sc: GpuScene, cover: Cover, layer: GpuLayer, ox: Float, oy: Float, t: Float,
         tuning: ProjectTuning, q: QualityMode,
@@ -320,11 +339,23 @@ class SceneRenderer {
         uniform1f(layerProgram, "uHasGlow", if (layer.glow != 0) 1f else 0f)
         uniform2f(layerProgram, "uRigDir", rig?.dirX ?: 1f, rig?.dirY ?: 0f)
         uniform1f(layerProgram, "uRigAmp", rig?.amplitude ?: 0f)
-        uniform1f(layerProgram, "uRigFreq", rig?.frequency ?: 0f)
+        // soft_body uses its own speed and strength multipliers from the Effects screen. Other modes are unchanged.
+        val soft = rig?.mode == "soft_body"
+        val gain = e.rigStrength * (if (soft) e.softBodyStrength else 1f)
+        uniform1f(layerProgram, "uRigFreq", (rig?.frequency ?: 0f) * (if (soft) e.softBodySpeed else 1f))
         uniform1f(layerProgram, "uRigPhase", rig?.phase ?: 0f)
         uniform2f(layerProgram, "uRigPivot", rig?.pivotX ?: 0.5f, rig?.pivotY ?: 0f)
-        uniform1f(layerProgram, "uRigMode", when (rig?.mode) { "ripple" -> 1f; "flutter" -> 2f; else -> 0f })
-        uniform1f(layerProgram, "uRigStrength", e.rigStrength)
+        uniform1f(
+            layerProgram, "uRigMode",
+            when (rig?.mode) { "ripple" -> 1f; "flutter" -> 2f; "soft_body" -> 3f; else -> 0f },
+        )
+        uniform1f(layerProgram, "uRigStrength", gain)
+        // The shader moves the content opposite to the displacement, so the negative lag trails the parallax.
+        uniform2f(
+            layerProgram, "uSoftTilt",
+            if (soft) -layer.lagX * Motion.SOFT_TILT_UV * gain else 0f,
+            if (soft) -layer.lagY * Motion.SOFT_TILT_UV * gain else 0f,
+        )
         uniform1f(layerProgram, "uTime", t)
         uniform1f(layerProgram, "uGlowSamples", q.glowSamples.toFloat())
         // Glow radius is a fraction of canvas height, converted to this layer's UV space so the halo is round.
