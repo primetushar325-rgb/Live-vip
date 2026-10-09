@@ -51,6 +51,19 @@ jobs:
           set -o pipefail
           ./gradlew --no-daemon testDebugUnitTest 2>&1 | tee unit-tests.log
 
+      - name: Summarize unit test results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, xml.etree.ElementTree as ET
+          total = failures = errors = skipped = 0
+          for f in glob.glob("app/build/test-results/testDebugUnitTest/*.xml"):
+              r = ET.parse(f).getroot()
+              total += int(r.get("tests", 0)); failures += int(r.get("failures", 0))
+              errors += int(r.get("errors", 0)); skipped += int(r.get("skipped", 0))
+          print(f"::notice::Unit tests: {total} run, {failures} failed, {errors} errors, {skipped} skipped")
+          PY
+
       - name: Build debug and release APKs
         run: |
           set -o pipefail
