@@ -91,7 +91,7 @@ jobs:
           done
           # Strings that exist only in the current import code, to prove the APK contains it.
           unzip -p dist/LiveVip-debug.apk 'classes*.dex' > dex-all.bin
-          for s in "Unsupported file '" "case-sensitive" "is not a ZIP-based" "__MACOSX" "Copy missing items" "Copy full report"; do
+          for s in "Unsupported file '" "case-sensitive" "is not a ZIP-based" "__MACOSX" "Copy missing items" "Copy full report" "soft_body" "uSoftTilt" "Soft body (chest"; do
             echo "::notice::debug dex contains '$s': $(grep -c -a -F "$s" dex-all.bin || true) match(es)"
           done
 
