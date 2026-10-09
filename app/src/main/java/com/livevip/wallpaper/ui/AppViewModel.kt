@@ -29,7 +29,7 @@ data class ImportState(
 
 /** Holds library, editor and settings state. All disk work runs on Dispatchers.IO. */
 class AppViewModel(application: Application) : AndroidViewModel(application) {
-    val store = ProjectStore(application)
+    val store = ProjectStore.forContext(application)
     val prefs = AppPrefs(application)
 
     private val _projects = MutableStateFlow<List<ProjectSummary>>(emptyList())
@@ -78,8 +78,10 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     fun importUri(uri: Uri) {
         _importState.value = ImportState(busy = true)
         viewModelScope.launch(Dispatchers.IO) {
-            val name = displayName(uri)
-            when (val result = store.importFromUri(getApplication(), uri, name)) {
+            // The name is only used for messages. A provider that fails this query must not stop the import.
+            val name = runCatching { displayName(uri) }.getOrNull()
+            val resolver = getApplication<Application>().contentResolver
+            when (val result = store.importFromUri(name) { resolver.openInputStream(uri) }) {
                 is ImportResult.Success -> {
                     _projects.value = store.list()
                     if (prefs.activeProjectId == null) {

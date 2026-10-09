@@ -1,11 +1,11 @@
 package com.livevip.wallpaper.project
 
 import android.content.Context
-import android.net.Uri
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import java.io.File
 import java.io.IOException
+import java.io.InputStream
 import java.util.UUID
 
 /** Summary shown in the library. */
@@ -35,20 +35,38 @@ sealed class ImportResult {
 
 /**
  * File-based project library under app-private storage:
- *   filesDir/projects/<id>/  extracted + validated project, plus meta.json and optional effects.json
- *   filesDir/staging/        temporary extraction area (never read by the renderer)
+ *   <root>/<id>/     extracted + validated project, plus meta.json and optional effects.json
+ *   <staging>/       temporary extraction area (never read by the renderer)
+ *   <cache>/         temporary copies of files chosen in the picker
+ *
+ * The constructor takes plain directories so the import pipeline can be unit tested on the JVM.
+ * [openAsset] is only needed for the bundled sample.
  */
-class ProjectStore(context: Context) {
-    private val appContext = context.applicationContext
-    private val root = File(appContext.filesDir, "projects")
-    private val staging = File(appContext.filesDir, "staging")
-    private val cache = File(appContext.cacheDir, "imports")
+class ProjectStore(
+    private val root: File,
+    private val staging: File,
+    private val cache: File,
+    private val openAsset: ((String) -> InputStream)? = null,
+) {
     private val gson: Gson = GsonBuilder().setPrettyPrinting().create()
 
     init {
         root.mkdirs()
         staging.mkdirs()
         cache.mkdirs()
+    }
+
+    companion object {
+        /** Production store under the app's private files and cache directories. */
+        fun forContext(context: Context): ProjectStore {
+            val app = context.applicationContext
+            return ProjectStore(
+                root = File(app.filesDir, "projects"),
+                staging = File(app.filesDir, "staging"),
+                cache = File(app.cacheDir, "imports"),
+                openAsset = { name -> app.assets.open(name) },
+            )
+        }
     }
 
     /** Removes leftovers from interrupted imports. Call only at app start, before any import runs. */
@@ -76,35 +94,66 @@ class ProjectStore(context: Context) {
         return LoadedProject(summaryOf(dir), validated.manifest, tuning)
     }
 
-    /** Imports a document picked with the system file picker. Copies first so the URI is not needed later. */
-    fun importFromUri(context: Context, uri: Uri, displayName: String?): ImportResult {
-        val temp = File(cache, "${UUID.randomUUID()}.mwproj")
+    /**
+     * Imports a file chosen with the system document picker.
+     *
+     * [displayName] is only used for error messages. Whether the file is accepted depends on its
+     * contents: it must be a ZIP archive containing a valid manifest.json and the files it names.
+     * [open] opens the picked URI's stream; it is called once and the stream is always closed.
+     */
+    fun importFromUri(displayName: String?, open: () -> InputStream?): ImportResult {
+        val temp = File(cache, "${UUID.randomUUID()}.part")
         return try {
-            context.contentResolver.openInputStream(uri)?.use { input ->
-                temp.outputStream().use { output ->
-                    val buffer = ByteArray(64 * 1024)
-                    var total = 0L
-                    while (true) {
-                        val n = input.read(buffer)
-                        if (n < 0) break
-                        total += n
-                        if (total > ProjectLimits.MAX_ARCHIVE_BYTES) {
-                            throw ProjectException("Project file is larger than ${ProjectLimits.MAX_ARCHIVE_BYTES / (1024 * 1024)} MB")
-                        }
-                        output.write(buffer, 0, n)
-                    }
-                }
-            } ?: throw ProjectException("Could not open the selected file")
-            if (displayName != null && !displayName.lowercase().endsWith(".mwproj") && !displayName.lowercase().endsWith(".zip")) {
-                throw ProjectException("Please select a .mwproj project file")
+            val opened = try {
+                open()
+            } catch (e: SecurityException) {
+                throw ProjectException("Android did not allow reading the selected file. Choose it again from the file picker.")
             }
-            ImportResult.Success(importArchive(temp))
+            val input = opened ?: throw ProjectException("Could not open the selected file")
+            input.use { copyLimited(it, temp) }
+            when (val kind = FileSniffer.kindOf(temp)) {
+                DetectedKind.ZIP -> ImportResult.Success(importArchive(temp))
+                else -> throw ProjectException(wrongTypeMessage(displayName, kind))
+            }
         } catch (e: ProjectException) {
             ImportResult.Failure(e.message ?: "Import failed")
         } catch (e: IOException) {
-            ImportResult.Failure("Could not read the selected file")
+            ImportResult.Failure("Could not read the selected file (${e.javaClass.simpleName})")
+        } catch (e: SecurityException) {
+            ImportResult.Failure("Android did not allow reading the selected file. Choose it again from the file picker.")
+        } catch (e: RuntimeException) {
+            ImportResult.Failure("Import failed unexpectedly (${e.javaClass.simpleName}). Nothing was added to the library.")
         } finally {
             temp.delete()
+        }
+    }
+
+    private fun copyLimited(input: InputStream, dest: File) {
+        dest.outputStream().use { output ->
+            val buffer = ByteArray(64 * 1024)
+            var total = 0L
+            while (true) {
+                val n = input.read(buffer)
+                if (n < 0) break
+                total += n
+                if (total > ProjectLimits.MAX_ARCHIVE_BYTES) {
+                    throw ProjectException("Project file is larger than ${ProjectLimits.MAX_ARCHIVE_BYTES / (1024 * 1024)} MB")
+                }
+                output.write(buffer, 0, n)
+            }
+        }
+    }
+
+    private fun wrongTypeMessage(displayName: String?, kind: DetectedKind): String {
+        val who = displayName?.takeIf { it.isNotBlank() }?.let { "'$it'" } ?: "The selected file"
+        return when (kind) {
+            DetectedKind.EMPTY -> "$who is empty. Export the project again."
+            DetectedKind.PNG, DetectedKind.JPEG ->
+                "$who is an image, not a .mwproj project. A project is a ZIP archive containing manifest.json and its PNG files."
+            DetectedKind.PDF -> "$who is a PDF document, not a .mwproj project."
+            DetectedKind.GZIP -> "$who is a GZIP file, not a .mwproj project. A .mwproj must be a ZIP archive."
+            DetectedKind.TEXT -> "$who is a text file, not a .mwproj project. A .mwproj must be a ZIP archive containing manifest.json."
+            else -> "$who is not a ZIP-based .mwproj project archive."
         }
     }
 
@@ -121,8 +170,10 @@ class ProjectStore(context: Context) {
             File(work, "meta.json").writeText(
                 gson.toJson(ProjectMeta(id = id, name = validated.manifest.name, createdAt = now, updatedAt = now)),
             )
+            // Read the summary before the rename so a failure here leaves nothing in the library.
+            val summary = summaryOf(work).copy(dir = target)
             if (!work.renameTo(target)) throw ProjectException("Could not save the project")
-            return summaryOf(target)
+            return summary
         } catch (e: ProjectException) {
             throw e
         } catch (e: Exception) {
@@ -133,11 +184,10 @@ class ProjectStore(context: Context) {
     }
 
     fun importBundledSample(name: String): ProjectSummary {
+        val open = openAsset ?: throw ProjectException("Bundled samples are not available")
         val temp = File(cache, "${UUID.randomUUID()}.mwproj")
         try {
-            appContext.assets.open("samples/$name").use { input ->
-                temp.outputStream().use { input.copyTo(it) }
-            }
+            open("samples/$name").use { input -> copyLimited(input, temp) }
             return importArchive(temp)
         } finally {
             temp.delete()

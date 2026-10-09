@@ -66,6 +66,29 @@ object TestFiles {
         return root
     }
 
+    /** The file map of a complete valid project, keyed by archive path (optionally under a folder prefix). */
+    fun validProjectEntries(prefix: String = ""): LinkedHashMap<String, ByteArray> {
+        val src = validProjectDir(tempDir("src"))
+        val map = LinkedHashMap<String, ByteArray>()
+        src.walkTopDown().filter { it.isFile }.sortedBy { it.path }.forEach { f ->
+            map[prefix + f.relativeTo(src).path.replace(File.separatorChar, '/')] = f.readBytes()
+        }
+        return map
+    }
+
+    /** Builds a ZIP archive in memory from name -> bytes. */
+    fun zipBytes(entries: Map<String, ByteArray>): ByteArray {
+        val out = ByteArrayOutputStream()
+        ZipOutputStream(out).use { zos ->
+            for ((name, bytes) in entries) {
+                zos.putNextEntry(ZipEntry(name))
+                zos.write(bytes)
+                zos.closeEntry()
+            }
+        }
+        return out.toByteArray()
+    }
+
     /** Builds a ZIP archive from name -> bytes. */
     fun zip(file: File, entries: Map<String, ByteArray>) {
         ZipOutputStream(file.outputStream()).use { zos ->

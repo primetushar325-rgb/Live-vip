@@ -190,6 +190,9 @@ fun ImportScreen(vm: AppViewModel, onDone: () -> Unit, onBack: () -> Unit) {
             Hint("Limits: archive ≤ 150 MB, unpacked ≤ 300 MB, canvas 128–4096 px, GPU image memory ≤ 256 MB. The file picker copies the file locally; nothing is uploaded.")
         }
         Panel {
+            // "*/*" on purpose: .mwproj has no registered MIME type, and providers report it as
+            // application/zip, application/octet-stream, or with no type at all. Filtering by MIME
+            // hides valid files in some providers. The importer checks the contents instead.
             Button(onClick = { picker.launch(arrayOf("*/*")) }, enabled = !state.busy) { Text("Choose .mwproj file") }
             OutlinedButton(onClick = { vm.importBundledSample() }, enabled = !state.busy) { Text("Import bundled sample") }
             if (state.busy) {

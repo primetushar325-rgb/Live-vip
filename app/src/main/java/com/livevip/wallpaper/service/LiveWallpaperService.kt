@@ -30,7 +30,7 @@ class LiveWallpaperService : WallpaperService() {
 
     private inner class LiveEngine : WallpaperService.Engine(), SharedPreferences.OnSharedPreferenceChangeListener {
         private val prefs = AppPrefs(applicationContext)
-        private val store = ProjectStore(applicationContext)
+        private val store = ProjectStore.forContext(applicationContext)
         private var renderThread: RenderThread? = null
         private var visible = false
         private var loadedProjectId: String? = null

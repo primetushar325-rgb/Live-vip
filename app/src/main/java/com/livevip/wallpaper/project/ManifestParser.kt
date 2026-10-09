@@ -16,10 +16,13 @@ object ManifestParser {
     private val hexRegex = Regex("^#([0-9A-Fa-f]{6}|[0-9A-Fa-f]{8})$")
 
     fun parse(json: String): ProjectManifest {
+        // Windows editors often save a UTF-8 byte-order mark first; it is not part of the JSON.
+        val text = json.removePrefix("\uFEFF").trim()
+        if (text.isEmpty()) throw ProjectException("manifest.json is empty")
         val root = try {
-            JsonParser.parseString(json)
+            JsonParser.parseString(text)
         } catch (e: Exception) {
-            throw ProjectException("manifest.json is not valid JSON")
+            throw ProjectException("manifest.json is not valid JSON. Check for missing commas, quotes or brackets.")
         }
         if (!root.isJsonObject) throw ProjectException("manifest.json must contain a JSON object")
         val o = root.asJsonObject
@@ -67,7 +70,7 @@ object ManifestParser {
         }
 
         val mesh = o.str("mesh")?.let { path ->
-            val p = SafePath.normalize(path) ?: throw ProjectException("Unsafe mesh path: $path")
+            val p = SafePath.normalize(stripDotSlash(path)) ?: throw ProjectException("Unsafe mesh path: $path")
             if (SafePath.extension(p) != "json") throw ProjectException("mesh must be a .json file")
             p
         }
@@ -157,10 +160,17 @@ object ManifestParser {
         if (effectsJson == null && motionJson == null) return null
         val effects = effectsJson?.let { normalizeColors(it) }
         val motion = motionJson
-        return ProjectTuning(
-            motion = if (motion != null) gson.fromJson(motion, MotionSettings::class.java) else MotionSettings(),
-            effects = if (effects != null) gson.fromJson(effects, EffectSettings::class.java) else EffectSettings(),
-        ).let { sanitize(it) }
+        val motionValue = try {
+            if (motion != null) gson.fromJson(motion, MotionSettings::class.java) else MotionSettings()
+        } catch (e: RuntimeException) {
+            throw ProjectException("manifest.motion has a value of the wrong type. Numbers and true/false are expected.")
+        }
+        val effectValue = try {
+            if (effects != null) gson.fromJson(effects, EffectSettings::class.java) else EffectSettings()
+        } catch (e: RuntimeException) {
+            throw ProjectException("manifest.effects has a value of the wrong type. Numbers, true/false and #RRGGBB colors are expected.")
+        }
+        return sanitize(ProjectTuning(motion = motionValue, effects = effectValue))
     }
 
     /** Converts "#RRGGBB"/"#AARRGGBB" strings in *Color keys into ARGB ints so Gson can read them. */
@@ -183,9 +193,16 @@ object ManifestParser {
         return java.lang.Long.parseLong(argb, 16).toInt()
     }
 
+    /** Accepts "./layers/x.png" as "layers/x.png". Everything else is still checked by SafePath. */
+    private fun stripDotSlash(raw: String): String {
+        var p = raw.trim().replace('\\', '/')
+        while (p.startsWith("./")) p = p.substring(2)
+        return p
+    }
+
     private fun pngPath(raw: String?, field: String): String {
         if (raw == null) throw ProjectException("$field is missing")
-        val p = SafePath.normalize(raw) ?: throw ProjectException("Unsafe or invalid path in $field: $raw")
+        val p = SafePath.normalize(stripDotSlash(raw)) ?: throw ProjectException("Unsafe or invalid path in $field: $raw")
         if (SafePath.extension(p) != "png") throw ProjectException("$field must reference a .png file")
         return p
     }

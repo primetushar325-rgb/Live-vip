@@ -16,11 +16,25 @@ library in that case.
 | Entries | ≤ 200 files |
 | Single file | ≤ 40 MB |
 | Allowed file types | `.png`, `.json` only |
-| Paths | relative, `/` separators, no `..`, no absolute paths, no `\`, no `:`, no hidden (`.`-prefixed) names, ≤ 4 folder levels, ≤ 80 chars per name |
+| Paths | relative, `/` separators, no `..`, no absolute paths, no `:`, ≤ 4 folder levels, ≤ 80 chars per name. A Windows `\` separator and a leading `./` are accepted and normalized |
+| Ignored entries | `__MACOSX/` folders, `._*` files, `.DS_Store`, `Thumbs.db`, `desktop.ini` and other dot-prefixed names are skipped (they are archiver metadata, not project content) |
 | Duplicates | not allowed |
-| Wrapper folder | allowed: if every entry sits under one folder that contains `manifest.json`, that folder is removed on import |
+| Wrapper folder | allowed: if every (non-ignored) entry sits under one folder that contains `manifest.json`, that folder is removed on import |
 
 Only `manifest.json` is mandatory at the top (or inside the single wrapper folder).
+
+## Importing a file
+
+* The app decides whether a file is a project from its **contents**, not its name. The file must start with
+  the ZIP signature (`PK`). The file name may be anything, with or without `.mwproj`, `.zip`, or no
+  extension. Document providers often report unusual names, so the name is only used in messages.
+* A `.mwproj` must be a ZIP archive. Images, PDFs, text files, and empty files are rejected with a message that
+  says what the file appears to be.
+* Errors name the problem and the file involved, for example `manifest.json is not valid JSON`,
+  `layer 'hair' refers to 'layers/hair.png', but the archive contains 'layers/Hair.png'. File names are
+  case-sensitive`, or `Unsupported file in archive: payload.exe`.
+* A manifest saved with a UTF-8 byte-order mark (common with Windows Notepad) is accepted.
+* A rejected import never adds anything to the library.
 
 ## Archive layout (example)
 

@@ -78,6 +78,7 @@ object ProjectValidator {
         val safe = SafePath.normalize(relative) ?: throw ProjectException("Unsafe path for $label: $relative")
         val file = File(dir, safe).canonicalFile
         if (!file.path.startsWith(dir.canonicalPath + File.separator)) throw ProjectException("Unsafe path for $label")
+        if (!file.isFile) throw ProjectException(missingFileMessage(dir, safe, label))
         val size = try {
             PngHeader.read(file)
         } catch (e: ProjectException) {
@@ -87,6 +88,23 @@ object ProjectValidator {
             throw ProjectException("$label is ${size.width}x${size.height}; the maximum side is ${ProjectLimits.MAX_IMAGE_SIDE}px")
         }
         return ImageDims(size.width, size.height)
+    }
+
+    /**
+     * Explains a missing file. Zip tools on Windows and macOS often change letter case, and the
+     * app's file system is case-sensitive, so a case-only mismatch gets a specific hint.
+     */
+    private fun missingFileMessage(dir: File, relative: String, label: String): String {
+        val wanted = relative.lowercase()
+        val sameNameDifferentCase = dir.walkTopDown()
+            .filter { it.isFile }
+            .map { it.relativeTo(dir).path.replace(File.separatorChar, '/') }
+            .firstOrNull { it.lowercase() == wanted && it != relative }
+        return if (sameNameDifferentCase != null) {
+            "$label refers to '$relative', but the archive contains '$sameNameDifferentCase'. File names are case-sensitive: change the manifest or rename the file so they match."
+        } else {
+            "$label refers to '$relative', which is not in the archive. Add the file or correct the path in manifest.json."
+        }
     }
 
     /** Pixel dimensions of an image; [bytes] is its RGBA8 texture footprint. */
