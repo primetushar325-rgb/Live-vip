@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Live VIP</string>
+    <string name="wallpaper_label">Live VIP 3D Wallpaper</string>
+    <string name="wallpaper_description">Offline 3D parallax live wallpaper from imported .mwproj projects.</string>
+</resources>

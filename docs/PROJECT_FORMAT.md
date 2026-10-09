@@ -1,0 +1,153 @@
+# Live VIP project format (`.mwproj`) — version 1
+
+A `.mwproj` file is a ZIP archive that you prepare **outside the app** (with any image editor and a
+text editor, or with `tools/make_sample_project.py` as an example). The app never runs AI models,
+never segments images on the phone, and never uploads anything. It only renders the files you supply.
+
+The app rejects an archive with a readable message if any rule below is broken. Nothing is added to the
+library in that case.
+
+## Archive rules
+
+| Rule | Limit |
+|---|---|
+| Archive size | ≤ 150 MB |
+| Unpacked size (all files together) | ≤ 300 MB |
+| Entries | ≤ 200 files |
+| Single file | ≤ 40 MB |
+| Allowed file types | `.png`, `.json` only |
+| Paths | relative, `/` separators, no `..`, no absolute paths, no `\`, no `:`, no hidden (`.`-prefixed) names, ≤ 4 folder levels, ≤ 80 chars per name |
+| Duplicates | not allowed |
+| Wrapper folder | allowed: if every entry sits under one folder that contains `manifest.json`, that folder is removed on import |
+
+Only `manifest.json` is mandatory at the top (or inside the single wrapper folder).
+
+## Archive layout (example)
+
+```
+manifest.json
+preview.png              optional, library thumbnail (any size ≤ 4096 px)
+background.png           required, exactly the canvas size
+depth.png                optional, grayscale, exactly the canvas size (white = near, black = far)
+layers/body.png          character layers, RGBA, cropped to their bounding box
+layers/cape.png
+layers/hair.png
+layers/sword.png
+masks/hair.png           optional per-layer mask, grayscale, same size as its layer
+masks/cape.png
+masks/sword.png
+glow/sword_glow.png      optional glow mask, grayscale, same size as its layer
+```
+
+Use `tools/make_sample_project.py` to see a complete working example. The app also bundles its output
+(`app/src/main/assets/samples/neon_warrior.mwproj`) and imports it on first launch.
+
+## Images
+
+* PNG only (checked by its signature and IHDR header, not by file name).
+* Every side between 1 and **4096 px**.
+* Canvas: width and height between **128 and 4096 px**.
+* Layers are placed at `x, y` (canvas pixels, may be negative) and must overlap the canvas.
+* Total GPU memory for all background, depth, layer, mask and glow images ≈ `width × height × 4` bytes each, and must be ≤ **256 MB**. Crop layers to their bounding box to stay under it. Previews are not counted.
+
+## manifest.json
+
+```json
+{
+  "format": "mwproj",
+  "formatVersion": 1,
+  "name": "Neon Warrior",
+  "canvas": { "width": 720, "height": 1280 },
+  "preview": "preview.png",
+  "background": { "file": "background.png", "depth": "depth.png" },
+  "layers": [
+    { "id": "cape", "role": "cape", "file": "layers/cape.png", "x": 245, "y": 496, "depth": 0.25,
+      "mask": "masks/cape.png",
+      "rig": { "mode": "ripple", "amplitude": 0.018, "frequency": 0.35, "phase": 0,
+               "pivot": [0.5, 0.0], "direction": [1, 0] } },
+    { "id": "body", "role": "body", "file": "layers/body.png", "x": 240, "y": 380, "depth": 0.5 }
+  ],
+  "particles": [
+    { "type": "fire", "count": 70, "region": [0, 0.74, 1, 0.26], "color": "#FF7A1A" }
+  ],
+  "effects": { "outerGlowColor": "#00E5FF", "outerGlowIntensity": 0.8, "innerGlowEnabled": true },
+  "motion": { "strength": 1.0, "perspective": 0.5, "smoothing": 6, "motionLimit": 0.6, "idleAmount": 0.2 },
+  "mesh": null
+}
+```
+
+### Top-level fields
+
+| Field | Required | Meaning |
+|---|---|---|
+| `format` | yes | must be `"mwproj"` |
+| `formatVersion` | yes | must be `1` |
+| `name` | yes | 1–80 characters |
+| `canvas.width`, `canvas.height` | yes | 128–4096 integers |
+| `preview` | no | PNG thumbnail path |
+| `background.file` | yes | PNG, exactly canvas size |
+| `background.depth` | no | PNG depth map, exactly canvas size. Without it the background uses a uniform mid depth (single-image procedural parallax) |
+| `layers` | no | up to 24 layers, drawn far (low depth) to near (high depth) |
+| `particles` | no | up to 8 emitter groups |
+| `effects` | no | default effect values (see below). Missing keys use app defaults |
+| `motion` | no | default motion values (see below) |
+| `mesh` | no | path to a `.json` mesh file. **Reserved in v1**: the file is checked for existence and size but is not rendered yet |
+
+### Layer fields
+
+| Field | Required | Meaning |
+|---|---|---|
+| `id` | yes | unique, 1–32 chars of `A–Z a–z 0–9 _ -` |
+| `file` | yes | RGBA PNG |
+| `role` | no | `body`, `hair`, `cloth`, `cape`, `sword`, `accessory`, `effect`, `other` (default `other`) |
+| `x`, `y` | no | canvas pixel position of the top-left corner (default 0) |
+| `depth` | no | 0 (far) … 1 (near), default 0.5. Controls how much the layer moves with tilt |
+| `mask` | no | grayscale PNG, same size as the layer. White = part that moves with the rig |
+| `glowMask` | no | grayscale PNG, same size as the layer. Its brightness drives the glow shape. Without it the layer's alpha is used |
+| `rig` | no | motion parameters (below). Without `rig` the layer does not animate |
+
+### Rig fields
+
+| Field | Default | Range | Meaning |
+|---|---|---|---|
+| `mode` | — (required) | `sway`, `ripple`, `flutter` | `sway`: slow pendulum. `ripple`: wave travelling through the part (capes, flags). `flutter`: faster, irregular motion (loose hair, fabric edges) |
+| `amplitude` | 0.01 | 0 – 0.08 | displacement in layer UV units (fraction of the layer size) |
+| `frequency` | 0.4 | 0 – 3 Hz | oscillation speed |
+| `phase` | 0 | any | start offset in radians |
+| `pivot` | [0.5, 0] | 0–1 each | UV point the motion is anchored to. Parts farther from the pivot move more |
+| `direction` | [1, 0] | any non-zero | movement direction (normalized by the app) |
+
+Without a mask, a rigged layer gets a gentle whole-layer sway (35 % of the amplitude). With a mask,
+only the masked pixels move. Independent hair, cloth and sword motion therefore requires separate
+layers plus masks. The app never estimates these parts from a flattened image.
+
+### Particle fields
+
+| Field | Default | Meaning |
+|---|---|---|
+| `type` | — (required) | `fire`, `sparks`, `magic`, `ambient` |
+| `count` | 40 | 0–300 particles at the default amount |
+| `region` | [0, 0, 1, 1] | `[x, y, w, h]`, 0–1, inside the visible screen (y goes down) |
+| `color` | type default | `#RRGGBB` or `#AARRGGBB` |
+
+### Effect and motion defaults
+
+Colors are `#RRGGBB` strings. All keys are optional; out-of-range values are clamped.
+
+* effects: `outerGlowEnabled`, `outerGlowColor`, `outerGlowIntensity` (0–2), `outerGlowRadius` (0.002–0.06, fraction of canvas height), `innerGlowEnabled`, `innerGlowColor`, `innerGlowIntensity` (0–2), `glowPulseSpeed` (0–3 Hz), `fireAmount`, `sparksAmount`, `magicAmount`, `ambientAmount` (0–1), `bgBlur` (0–1), `bgBrightness` (−0.5–0.5), `bgContrast` (0.5–1.5), `bgSaturation` (0–2), `bgTintColor`, `bgTintAmount` (0–1), `rigStrength` (0–2)
+* motion: `strength` (0–2), `perspective` (0–1), `depthScale` (0–2), `smoothing` (1–20), `motionLimit` (0.05–1), `idleAmount` (0–1), `invertX`, `invertY`
+
+Users can change these values in the app. Saved changes are stored in the app's own storage
+(`effects.json`) and never written back into the `.mwproj` file.
+
+## Validation summary
+
+1. Archive: size, entry count, names, types, duplicates, compression ratio, and total unpacked size
+   (counted while the bytes are actually written, not only from headers).
+2. Manifest: JSON syntax, `format`, `formatVersion`, field types, ranges, unique ids, safe paths.
+3. Files: every referenced file exists; PNG signature and dimensions; canvas-size background and depth;
+   masks and glow masks match their layer; layers overlap the canvas; GPU memory budget.
+
+## Versioning
+
+`formatVersion` changes only for incompatible changes. Version 1 is the only version supported so far.
