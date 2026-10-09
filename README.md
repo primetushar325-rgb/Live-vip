@@ -62,7 +62,7 @@ workflow artifact, and on pushes publishes them to a rolling `dev-<branch>` pre-
 1. Download the debug APK directly: https://github.com/primetushar325-rgb/Live-vip/releases/download/dev-arena-95fb05f6-live-vip/LiveVip-debug.apk
    (release page: https://github.com/primetushar325-rgb/Live-vip/releases/tag/dev-arena-95fb05f6-live-vip). The release APK is also attached there.
 2. Allow installing from your browser or file manager when Android asks.
-3. Open **Live VIP**, import a `.mwproj` (or use the bundled sample), then **Set as live wallpaper**.
+3. Open **Live VIP** and go to **Import project**. Read the checklist, then choose a `.mwproj` (or check the bundled sample). The report lists anything missing, with exact file names. Copy the missing items or the full report to fix the project. Then **Set as live wallpaper**.
 
 The release APK is signed with the Android debug key so it can be sideloaded. It is not Play Store signed.
 

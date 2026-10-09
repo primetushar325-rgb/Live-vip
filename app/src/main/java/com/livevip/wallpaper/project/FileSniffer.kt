@@ -48,6 +48,20 @@ object FileSniffer {
         }
     }
 
+    /** A readable explanation of why a file is not a .mwproj. [displayName] may be null. */
+    fun describe(kind: DetectedKind, displayName: String?): String {
+        val who = displayName?.takeIf { it.isNotBlank() }?.let { "'$it'" } ?: "The selected file"
+        return when (kind) {
+            DetectedKind.EMPTY -> "$who is empty. Export the project again."
+            DetectedKind.PNG, DetectedKind.JPEG ->
+                "$who is an image, not a .mwproj project. A project is a ZIP archive containing manifest.json and its PNG files."
+            DetectedKind.PDF -> "$who is a PDF document, not a .mwproj project."
+            DetectedKind.GZIP -> "$who is a GZIP file, not a .mwproj project. A .mwproj must be a ZIP archive."
+            DetectedKind.TEXT -> "$who is a text file, not a .mwproj project. A .mwproj must be a ZIP archive containing manifest.json."
+            else -> "$who is not a ZIP-based .mwproj project archive."
+        }
+    }
+
     /** True when the sample has no NUL bytes and almost all bytes are printable ASCII or UTF-8. */
     private fun looksLikeText(sample: ByteArray): Boolean {
         if (sample.isEmpty()) return false

@@ -8,17 +8,12 @@ import java.util.zip.ZipFile
 /**
  * Safely extracts a .mwproj (ZIP) into an empty directory.
  *
- * Protections: archive size, entry count, per-entry size, total uncompressed size (checked while
- * streaming, not just from headers), compression-ratio sanity, unsafe names (absolute paths, drive
- * letters, `..`), duplicate names, disallowed file types, and canonical-path containment (zip-slip).
- *
- * Harmless metadata that archivers add is skipped rather than rejected: `__MACOSX/` folders and
- * `._*` AppleDouble files (macOS Finder), `.DS_Store`, `Thumbs.db`, `desktop.ini`, and other
- * dot-prefixed names. Backslash separators and a leading `./` are normalized to `/`.
+ * The name, type and size rules come from [ArchiveRules.plan], which the checker also uses, so the
+ * extractor accepts exactly what the report calls valid. While streaming, the total uncompressed size
+ * is checked again, because headers can lie. Canonical-path containment is a second guard against
+ * zip-slip.
  */
 object ArchiveExtractor {
-
-    private val IGNORED_FILE_NAMES = setOf("thumbs.db", "desktop.ini")
 
     fun extract(archive: File, destination: File) {
         if (!archive.isFile) throw ProjectException("Import file is missing")
@@ -38,58 +33,36 @@ object ArchiveExtractor {
             val en = z.entries()
             while (en.hasMoreElements()) entries.add(en.nextElement())
 
-            // Pass 1: check every name before anything is written.
-            val plan = LinkedHashMap<ZipEntry, String>()
-            val seen = HashSet<String>()
-            for (e in entries) {
-                val normalized = normalizeName(e.name).trimEnd('/')
-                if (normalized.isEmpty() && e.isDirectory) continue // archive root entry such as "./"
-                val segments = normalized.split('/')
-                checkNameIsSafe(e.name, segments) // every entry, including metadata, must have a safe name
-                if (isIgnorable(segments) || e.isDirectory) continue
-                val rel = SafePath.normalize(normalizeName(e.name).trimEnd('/'))
-                    ?: throw ProjectException("Unsafe path in archive: ${e.name}")
-                if (!seen.add(rel)) throw ProjectException("Duplicate file in archive: $rel")
-                val ext = SafePath.extension(rel)
-                if (ext !in ProjectLimits.ALLOWED_EXTENSIONS) {
-                    throw ProjectException("Unsupported file in archive: $rel. Only .png and .json files are allowed, so remove it from the project.")
-                }
-                if (e.size > ProjectLimits.MAX_ENTRY_BYTES) throw ProjectException("File too large in archive: $rel")
-                val compressed = e.compressedSize
-                if (e.size > 10L * 1024 * 1024 && compressed > 0 && e.size / compressed > 200) {
-                    throw ProjectException("Suspicious compression ratio in $rel")
-                }
-                plan[e] = rel
+            // Pass 1: check every name and type before anything is written.
+            val report = ReportBuilder()
+            val plan = ArchiveRules.plan(entries, CheckLimits.DEFAULT, report)
+            report.firstError()?.let { throw ProjectException(it.message) }
+            if (plan.files.isEmpty()) {
+                throw ProjectException("The archive contains no project files. manifest.json is missing.")
             }
-            if (plan.isEmpty()) throw ProjectException("The archive contains no project files. manifest.json must be at the top level or in one folder.")
-            if (plan.size > ProjectLimits.MAX_ENTRY_COUNT) {
-                throw ProjectException("Archive has too many files (max ${ProjectLimits.MAX_ENTRY_COUNT})")
-            }
-
-            // Support archives that wrap everything in one folder (e.g. when a folder was zipped).
-            val prefix = detectWrapperPrefix(plan.values)
-            if (!plan.values.any { it == "manifest.json" } && prefix == null) {
-                throw ProjectException("manifest.json is missing from the project archive. It must be at the top level or inside one folder.")
+            if (plan.files.none { it.rel == "manifest.json" }) {
+                throw ProjectException("manifest.json is missing from the archive. It must be at the top level, or inside the one folder that holds all project files.")
             }
 
             // Pass 2: write files, streaming and enforcing the total size limit.
             val destCanonical = destination.canonicalPath + File.separator
             var total = 0L
             val buffer = ByteArray(64 * 1024)
-            for ((entry, rawRel) in plan) {
-                val rel = if (prefix != null) rawRel.removePrefix("$prefix/") else rawRel
-                val out = File(destination, rel).canonicalFile
-                if (!out.path.startsWith(destCanonical)) throw ProjectException("Blocked unsafe path: $rel")
+            for (p in plan.files) {
+                val out = File(destination, p.rel).canonicalFile
+                if (!out.path.startsWith(destCanonical)) throw ProjectException("Blocked unsafe path: ${p.rel}")
                 out.parentFile?.mkdirs()
                 try {
-                    z.getInputStream(entry).use { input ->
+                    z.getInputStream(p.entry).use { input ->
                         out.outputStream().use { output ->
                             while (true) {
                                 val n = input.read(buffer)
                                 if (n < 0) break
                                 total += n
                                 if (total > ProjectLimits.MAX_UNCOMPRESSED_BYTES) {
-                                    throw ProjectException("Project is too large when unpacked (limit ${ProjectLimits.MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB)")
+                                    throw ProjectException(
+                                        "Project is too large when unpacked (limit ${ProjectLimits.MAX_UNCOMPRESSED_BYTES / (1024 * 1024)} MB)",
+                                    )
                                 }
                                 output.write(buffer, 0, n)
                             }
@@ -98,42 +71,9 @@ object ArchiveExtractor {
                 } catch (e: ProjectException) {
                     throw e
                 } catch (e: IOException) {
-                    throw ProjectException("Could not read $rel (the archive may be corrupt or encrypted)")
+                    throw ProjectException("Could not read ${p.rel} (the archive may be corrupt or encrypted)")
                 }
             }
         }
-    }
-
-    /** Converts Windows separators and removes leading "./" segments. Other rules are checked afterwards. */
-    internal fun normalizeName(raw: String): String {
-        var name = raw.replace('\\', '/')
-        while (name.startsWith("./")) name = name.substring(2)
-        return name
-    }
-
-    /** Rejects names that could escape the destination. Runs on every entry, before any entry is skipped. */
-    private fun checkNameIsSafe(original: String, segments: List<String>) {
-        val unsafe = original.isEmpty() ||
-            original.startsWith("/") ||
-            original.contains(':') ||
-            original.contains('\u0000') ||
-            segments.any { it == ".." || it.isEmpty() }
-        if (unsafe) throw ProjectException("Unsafe path in archive: $original")
-    }
-
-    /** macOS and desktop metadata, and dot-prefixed names, are skipped instead of extracted. */
-    private fun isIgnorable(segments: List<String>): Boolean {
-        return segments.any { seg ->
-            seg == "__MACOSX" || (seg.startsWith(".") && seg != "..") || seg.lowercase() in IGNORED_FILE_NAMES
-        }
-    }
-
-    /** Returns the wrapper folder name if every entry lives under one folder that holds manifest.json. */
-    private fun detectWrapperPrefix(names: Collection<String>): String? {
-        if (names.isEmpty()) return null
-        val first = names.first().substringBefore('/', missingDelimiterValue = "")
-        if (first.isEmpty()) return null
-        if (names.any { !it.startsWith("$first/") }) return null
-        return if (names.contains("$first/manifest.json")) first else null
     }
 }

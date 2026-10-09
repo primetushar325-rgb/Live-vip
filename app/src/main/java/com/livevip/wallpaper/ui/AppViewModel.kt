@@ -13,6 +13,7 @@ import com.livevip.wallpaper.project.ManifestParser
 import com.livevip.wallpaper.project.MotionSettings
 import com.livevip.wallpaper.project.ProjectStore
 import com.livevip.wallpaper.project.ProjectSummary
+import com.livevip.wallpaper.project.ValidationReport
 import com.livevip.wallpaper.project.ProjectTuning
 import com.livevip.wallpaper.project.QualityMode
 import kotlinx.coroutines.Dispatchers
@@ -21,9 +22,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
 
+/** What the Import screen shows: whether a check is running, the last report, and the name if it was added. */
 data class ImportState(
     val busy: Boolean = false,
-    val errors: List<String> = emptyList(),
+    val report: ValidationReport? = null,
     val importedName: String? = null,
 )
 
@@ -59,12 +61,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) {
             store.cleanupLeftovers()
             if (!prefs.sampleImported) {
-                try {
-                    val sample = store.importBundledSample(SAMPLE_ASSET)
-                    prefs.sampleImported = true
-                    if (prefs.activeProjectId == null) prefs.activeProjectId = sample.id
-                } catch (e: Exception) {
-                    _message.value = "Bundled sample could not be imported: ${e.message ?: "unknown error"}"
+                when (val sample = safely { store.importBundledSample(SAMPLE_ASSET) }) {
+                    is ImportResult.Success -> {
+                        prefs.sampleImported = true
+                        if (prefs.activeProjectId == null) prefs.activeProjectId = sample.project.id
+                    }
+                    is ImportResult.Failure -> _message.value = "Bundled sample could not be imported: ${sample.message}"
                 }
             }
             _projects.value = store.list()
@@ -75,23 +77,14 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch(Dispatchers.IO) { _projects.value = store.list() }
     }
 
+    /** Checks the picked file on a background thread and publishes the report. Nothing is uploaded. */
     fun importUri(uri: Uri) {
         _importState.value = ImportState(busy = true)
         viewModelScope.launch(Dispatchers.IO) {
             // The name is only used for messages. A provider that fails this query must not stop the import.
             val name = runCatching { displayName(uri) }.getOrNull()
             val resolver = getApplication<Application>().contentResolver
-            when (val result = store.importFromUri(name) { resolver.openInputStream(uri) }) {
-                is ImportResult.Success -> {
-                    _projects.value = store.list()
-                    if (prefs.activeProjectId == null) {
-                        prefs.activeProjectId = result.project.id
-                        prefs.bumpRevision()
-                    }
-                    _importState.value = ImportState(importedName = result.project.name)
-                }
-                is ImportResult.Failure -> _importState.value = ImportState(errors = listOf(result.message))
-            }
+            publish(safely { store.importFromUri(name) { resolver.openInputStream(uri) } })
         }
     }
 
@@ -99,18 +92,36 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         _importState.value = ImportState()
     }
 
+    /** Checks and imports the bundled sample, using the same rules as a picked file. */
     fun importBundledSample() {
         _importState.value = ImportState(busy = true)
         viewModelScope.launch(Dispatchers.IO) {
-            try {
-                val sample = store.importBundledSample(SAMPLE_ASSET)
-                _projects.value = store.list()
-                _importState.value = ImportState(importedName = sample.name)
-            } catch (e: Exception) {
-                _importState.value = ImportState(errors = listOf(e.message ?: "Sample import failed"))
-            }
+            publish(safely { store.importBundledSample(SAMPLE_ASSET) })
         }
     }
+
+    private fun publish(result: ImportResult) {
+        when (result) {
+            is ImportResult.Success -> {
+                _projects.value = store.list()
+                if (prefs.activeProjectId == null) {
+                    prefs.activeProjectId = result.project.id
+                    prefs.bumpRevision()
+                }
+                _importState.value = ImportState(report = result.report, importedName = result.project.name)
+            }
+            is ImportResult.Failure -> _importState.value = ImportState(report = result.report)
+        }
+    }
+
+    /** Runs an import and turns any unexpected exception into a failed result, so the screen never crashes. */
+    private inline fun safely(block: () -> ImportResult): ImportResult =
+        try {
+            block()
+        } catch (e: Exception) {
+            val text = "Import failed unexpectedly (${e.javaClass.simpleName}). Nothing was added to the library."
+            ImportResult.Failure(text, ValidationReport.failure("selected file", text))
+        }
 
     private fun displayName(uri: Uri): String? =
         getApplication<Application>().contentResolver

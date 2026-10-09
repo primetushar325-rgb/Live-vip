@@ -28,9 +28,12 @@ data class LoadedProject(
     val tuning: ProjectTuning,
 )
 
+/** Outcome of an import. Both variants carry the validation report, so the screen can show every finding. */
 sealed class ImportResult {
-    data class Success(val project: ProjectSummary) : ImportResult()
-    data class Failure(val message: String) : ImportResult()
+    abstract val report: ValidationReport
+
+    data class Success(val project: ProjectSummary, override val report: ValidationReport) : ImportResult()
+    data class Failure(val message: String, override val report: ValidationReport) : ImportResult()
 }
 
 /**
@@ -97,9 +100,9 @@ class ProjectStore(
     /**
      * Imports a file chosen with the system document picker.
      *
-     * [displayName] is only used for error messages. Whether the file is accepted depends on its
-     * contents: it must be a ZIP archive containing a valid manifest.json and the files it names.
-     * [open] opens the picked URI's stream; it is called once and the stream is always closed.
+     * [displayName] is only used in messages. Acceptance depends on the contents: the file must be a
+     * ZIP archive that passes [ProjectChecker]. [open] opens the picked URI's stream and is called once.
+     * Nothing here throws: every outcome is an [ImportResult].
      */
     fun importFromUri(displayName: String?, open: () -> InputStream?): ImportResult {
         val temp = File(cache, "${UUID.randomUUID()}.part")
@@ -111,22 +114,45 @@ class ProjectStore(
             }
             val input = opened ?: throw ProjectException("Could not open the selected file")
             input.use { copyLimited(it, temp) }
-            when (val kind = FileSniffer.kindOf(temp)) {
-                DetectedKind.ZIP -> ImportResult.Success(importArchive(temp))
-                else -> throw ProjectException(wrongTypeMessage(displayName, kind))
-            }
+            importTemp(temp, displayName)
         } catch (e: ProjectException) {
-            ImportResult.Failure(e.message ?: "Import failed")
+            failure(displayName, e.message ?: "Import failed")
         } catch (e: IOException) {
-            ImportResult.Failure("Could not read the selected file (${e.javaClass.simpleName})")
+            failure(displayName, "Could not read the selected file (${e.javaClass.simpleName})")
         } catch (e: SecurityException) {
-            ImportResult.Failure("Android did not allow reading the selected file. Choose it again from the file picker.")
+            failure(displayName, "Android did not allow reading the selected file. Choose it again from the file picker.")
         } catch (e: RuntimeException) {
-            ImportResult.Failure("Import failed unexpectedly (${e.javaClass.simpleName}). Nothing was added to the library.")
+            failure(displayName, "Import failed unexpectedly (${e.javaClass.simpleName}). Nothing was added to the library.")
         } finally {
             temp.delete()
         }
     }
+
+    /** Checks a local copy and installs it only if the check passes. Every failure path returns a report. */
+    private fun importTemp(temp: File, displayName: String?): ImportResult {
+        val report = ProjectChecker.inspectArchive(temp, displayName).report
+        if (!report.isImportable) {
+            val message = summaryMessage(report)
+            return ImportResult.Failure(message, report)
+        }
+        return try {
+            ImportResult.Success(importArchive(temp), report)
+        } catch (e: ProjectException) {
+            val message = e.message ?: "Import failed"
+            ImportResult.Failure(message, report.withFinding(Finding(Severity.ERROR, Section.CHECKER, Code.CHECK_FAILED, null, message)))
+        }
+    }
+
+    /** One line for the first problem, with a count of the rest. The full list is in the report. */
+    private fun summaryMessage(report: ValidationReport): String {
+        val errors = report.errors
+        val first = errors.firstOrNull()?.message ?: "This file cannot be imported."
+        val more = errors.size - 1
+        return if (more <= 0) first else "$first ($more more problem${if (more == 1) "" else "s"} listed in the report.)"
+    }
+
+    private fun failure(displayName: String?, message: String): ImportResult.Failure =
+        ImportResult.Failure(message, ValidationReport.failure(displayName?.takeIf { it.isNotBlank() } ?: "selected file", message))
 
     private fun copyLimited(input: InputStream, dest: File) {
         dest.outputStream().use { output ->
@@ -141,19 +167,6 @@ class ProjectStore(
                 }
                 output.write(buffer, 0, n)
             }
-        }
-    }
-
-    private fun wrongTypeMessage(displayName: String?, kind: DetectedKind): String {
-        val who = displayName?.takeIf { it.isNotBlank() }?.let { "'$it'" } ?: "The selected file"
-        return when (kind) {
-            DetectedKind.EMPTY -> "$who is empty. Export the project again."
-            DetectedKind.PNG, DetectedKind.JPEG ->
-                "$who is an image, not a .mwproj project. A project is a ZIP archive containing manifest.json and its PNG files."
-            DetectedKind.PDF -> "$who is a PDF document, not a .mwproj project."
-            DetectedKind.GZIP -> "$who is a GZIP file, not a .mwproj project. A .mwproj must be a ZIP archive."
-            DetectedKind.TEXT -> "$who is a text file, not a .mwproj project. A .mwproj must be a ZIP archive containing manifest.json."
-            else -> "$who is not a ZIP-based .mwproj project archive."
         }
     }
 
@@ -183,12 +196,17 @@ class ProjectStore(
         }
     }
 
-    fun importBundledSample(name: String): ProjectSummary {
-        val open = openAsset ?: throw ProjectException("Bundled samples are not available")
+    /** Imports a bundled sample through the same checks as a picked file. */
+    fun importBundledSample(name: String): ImportResult {
+        val open = openAsset ?: return failure(name, "Bundled samples are not available in this build.")
         val temp = File(cache, "${UUID.randomUUID()}.mwproj")
-        try {
+        return try {
             open("samples/$name").use { input -> copyLimited(input, temp) }
-            return importArchive(temp)
+            importTemp(temp, name)
+        } catch (e: ProjectException) {
+            failure(name, e.message ?: "Sample import failed")
+        } catch (e: IOException) {
+            failure(name, "Could not read the bundled sample (${e.javaClass.simpleName})")
         } finally {
             temp.delete()
         }

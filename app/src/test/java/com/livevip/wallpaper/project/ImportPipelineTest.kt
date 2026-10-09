@@ -45,6 +45,8 @@ class ImportPipelineTest {
     /** Asserts the import was rejected with a message containing every fragment, and changed nothing. */
     private fun assertRejected(result: ImportResult, vararg fragments: String) {
         val failure = result as? ImportResult.Failure ?: throw AssertionError("expected a rejection but got $result")
+        assertTrue("a rejection must carry the report's errors", failure.report.errors.isNotEmpty())
+        assertEquals("the report must not claim the file is importable", false, failure.report.isImportable)
         for (f in fragments) {
             assertTrue("message should mention '$f' but was: ${failure.message}", failure.message.contains(f, ignoreCase = true))
         }
@@ -147,7 +149,7 @@ class ImportPipelineTest {
 
     @Test
     fun importsBundledSampleByAssetName() {
-        val summary = store.importBundledSample("neon_warrior.mwproj")
+        val summary = successOf(store.importBundledSample("neon_warrior.mwproj"))
         assertEquals("Neon Warrior", summary.name)
     }
 

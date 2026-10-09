@@ -30,11 +30,32 @@ Only `manifest.json` is mandatory at the top (or inside the single wrapper folde
   extension. Document providers often report unusual names, so the name is only used in messages.
 * A `.mwproj` must be a ZIP archive. Images, PDFs, text files, and empty files are rejected with a message that
   says what the file appears to be.
-* Errors name the problem and the file involved, for example `manifest.json is not valid JSON`,
-  `layer 'hair' refers to 'layers/hair.png', but the archive contains 'layers/Hair.png'. File names are
-  case-sensitive`, or `Unsupported file in archive: payload.exe`.
+* Errors name the problem and the exact file or field involved, for example `manifest.json is not valid JSON`,
+  `manifest.formatVersion is missing`, `layer 'hair' refers to 'layers/hair.png', which is not in the archive`
+  (with a case-sensitivity note when only the capitalization differs), or `Unsupported file 'payload.exe'`.
 * A manifest saved with a UTF-8 byte-order mark (common with Windows Notepad) is accepted.
 * A rejected import never adds anything to the library.
+
+## Validation report and checklist
+
+The Import screen shows the requirements checklist before any file is chosen. Choosing a file runs the
+same checks on the phone and shows a report with these sections:
+
+* **Result**: `VALID`, `VALID WITH WARNINGS`, or `NOT IMPORTED`. Only errors block an import.
+* **Missing items (required)**: each missing `manifest.json` field (for example `formatVersion`) and each
+  referenced file that is absent, listed by its exact archive path.
+* **Unsupported files**: each file with a disallowed extension, listed by its file name.
+* **Optional files not included (ignored)**: referenced optional files that are absent. They are warnings,
+  not failures. The app ignores them: no depth map means a flat depth, no preview means the background is
+  used as the thumbnail, a missing mask or glow mask means that effect is skipped for the layer.
+* **Other problems**, **Notes and warnings**, and **Passed checks**.
+
+Two copy buttons put text on the clipboard: **Copy missing items** (the list to fix) and **Copy full report**
+(every finding with its code, path, and fix). **Copy checklist** copies the requirements. **Check another
+file** re-runs the checks on a corrected file, so the results update.
+
+A check never changes the original file, and nothing is uploaded. The app does not repair projects. Fix the
+archive and check it again.
 
 ## Archive layout (example)
 
@@ -158,9 +179,13 @@ Users can change these values in the app. Saved changes are stored in the app's 
 
 1. Archive: size, entry count, names, types, duplicates, compression ratio, and total unpacked size
    (counted while the bytes are actually written, not only from headers).
-2. Manifest: JSON syntax, `format`, `formatVersion`, field types, ranges, unique ids, safe paths.
-3. Files: every referenced file exists; PNG signature and dimensions; canvas-size background and depth;
-   masks and glow masks match their layer; layers overlap the canvas; GPU memory budget.
+2. Manifest: JSON syntax and depth, `format`, `formatVersion`, field types, ranges, unique ids, safe paths.
+   Unknown fields are warnings and are ignored.
+3. Files: every required file exists (`background.png`, each layer `file`); optional files are warnings;
+   PNG signature and dimensions; canvas-size background (and depth, when present); masks and glow masks match
+   their layer; layers overlap the canvas; GPU memory budget.
+
+The checker collects every problem, not just the first. The import and the library use the same rules.
 
 ## Versioning
 
